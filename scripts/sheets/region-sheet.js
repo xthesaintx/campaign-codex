@@ -1,0 +1,235 @@
+import { CampaignCodexBaseSheet } from './base-sheet.js';
+import { TemplateComponents } from './template-components.js';
+import { DescriptionEditor } from './editors/description-editor.js';
+import { CampaignCodexLinkers } from './linkers.js';
+
+export class RegionSheet extends CampaignCodexBaseSheet {
+  static get defaultOptions() {
+    return foundry.utils.mergeObject(super.defaultOptions, {
+      classes: [...super.defaultOptions.classes, "region-sheet"]
+    });
+  }
+
+  get template() {
+    return "modules/campaign-codex/templates/base-sheet.html";
+  }
+
+  async getData() {
+    const data = await super.getData();
+    const regionData = this.document.getFlag("campaign-codex", "data") || {};
+
+     
+    // Get linked documents with complete hierarchy
+    data.linkedLocations = await CampaignCodexLinkers.getLinkedLocations(regionData.linkedLocations || []);
+    data.allNPCs = await CampaignCodexLinkers.getAllNPCs(regionData.linkedLocations || []);
+    data.allShops = await CampaignCodexLinkers.getAllShops(regionData.linkedLocations || []);
+    
+    // Sheet configuration
+    data.sheetType = "region";
+    data.sheetTypeLabel = "Region";
+    data.customImage = this.document.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
+    
+    // Navigation tabs
+    data.tabs = [
+      { key: 'info', label: 'Info', icon: 'fas fa-info-circle', active: this._currentTab === 'info' },
+      { key: 'locations', label: 'Locations', icon: 'fas fa-map-marker-alt', active: this._currentTab === 'locations' ,
+      statistic: {
+        value: Array.isArray(data.linkedLocations) ? data.linkedLocations.length : 0,
+        color: '#28a745'
+      }},
+      { key: 'npcs', label: 'NPCs', icon: 'fas fa-users', active: this._currentTab === 'npcs' ,
+      statistic: {
+        value: Array.isArray(data.allNPCs) ? data.allNPCs.length : 0,
+        color: '#fd7e14'
+      }},
+      { key: 'shops', label: 'Shops', icon: 'fas fa-store', active: this._currentTab === 'shops' ,
+      statistic: {
+        value: Array.isArray(data.allShops) ? data.allShops.length : 0,
+        color: '#6f42c1'
+      }},
+      { key: 'notes', label: 'Notes', icon: 'fas fa-sticky-note', active: this._currentTab === 'notes' }
+    ];
+    
+    // Statistics
+    data.statistics = [
+      { icon: 'fas fa-map-marker-alt', value: data.linkedLocations.length, label: 'LOCATIONS', color: '#28a745' },
+      { icon: 'fas fa-users', value: data.allNPCs.length, label: 'NPCS', color: '#fd7e14' },
+      { icon: 'fas fa-store', value: data.allShops.length, label: 'SHOPS', color: '#6f42c1' }
+    ];
+    
+    // Quick links
+    data.quickLinks = [
+      ...data.linkedLocations.map(loc => ({ ...loc, type: 'location' }))
+    ];
+    
+    // Tab panels
+    data.tabPanels = [
+      {
+        key: 'info',
+        active: this._currentTab === 'info',
+        content: this._generateInfoTab(data)
+      },
+      {
+        key: 'locations',
+        active: this._currentTab === 'locations',
+        content: this._generateLocationsTab(data)
+      },
+      {
+        key: 'npcs',
+        active: this._currentTab === 'npcs',
+        content: this._generateNPCsTab(data)
+      },
+      {
+        key: 'shops', 
+        active: this._currentTab === 'shops',
+        content: this._generateShopsTab(data)
+      },
+      {
+        key: 'notes',
+        active: this._currentTab === 'notes',
+        content: CampaignCodexBaseSheet.generateNotesTab(data)
+      }
+    ];
+    
+    return data;
+  }
+
+  _generateInfoTab(data) {
+
+    return `
+      ${TemplateComponents.contentHeader('fas fas fa-info-circle', 'Information')}
+      ${TemplateComponents.richTextSection('Description', 'fas fa-align-left', data.sheetData.enrichedDescription, 'description')}
+    `;  }
+
+  _generateLocationsTab(data) {
+    return `
+      ${TemplateComponents.contentHeader('fas fa-map-marker-alt', 'Locations in this Region')}
+      ${TemplateComponents.dropZone('location', 'fas fa-map-marker-alt', 'Add Locations', 'Drag location journals here to add them to this region')}
+      ${TemplateComponents.entityGrid(data.linkedLocations, 'location')}
+    `;
+  }
+
+  _generateNPCsTab(data) {
+    const refreshBtn = `
+      <button type="button" class="refresh-btn refresh-npcs" title="Refresh auto-populated data">
+        <i class="fas fa-sync-alt"></i>
+        Refresh
+      </button>
+    `;
+
+    return `
+      ${TemplateComponents.contentHeader('fas fa-users', 'NPCs in this Region', refreshBtn)}
+      ${TemplateComponents.infoBanner('NPCs are automatically populated from all locations and shops in this region.')}
+      ${this._generateNPCsBySource(data)}
+    `;
+  }
+
+  _generateNPCsBySource(data) {
+    // Group NPCs by their source
+    const directNPCs = data.allNPCs.filter(npc => npc.source === 'location');
+    const shopNPCs = data.allNPCs.filter(npc => npc.source === 'shop');
+
+    let content = '';
+
+    // Direct Location NPCs
+    if (directNPCs.length > 0) {
+      content += `
+        <div class="npc-section">
+          <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
+            <i class="fas fa-map-marker-alt" style="color: var(--cc-accent); margin-right: 8px;"></i>
+            Location NPCs (${directNPCs.length})
+          </h3>
+          ${TemplateComponents.entityGrid(directNPCs, 'npc', true)}
+        </div>
+      `;
+    }
+
+    // Shop NPCs
+    if (shopNPCs.length > 0) {
+      content += `
+        <div class="npc-section">
+          <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
+            <i class="fas fa-store" style="color: var(--cc-accent); margin-right: 8px;"></i>
+            Shop NPCs (${shopNPCs.length})
+          </h3>
+          ${TemplateComponents.entityGrid(shopNPCs, 'npc', true)}
+        </div>
+      `;
+    }
+
+    // If no NPCs
+    if (data.allNPCs.length === 0) {
+      content = TemplateComponents.emptyState('npc');
+    }
+
+    return content;
+  }
+
+  _generateShopsTab(data) {
+    const refreshBtn = `
+      <button type="button" class="refresh-btn refresh-shops" title="Refresh auto-populated data">
+        <i class="fas fa-sync-alt"></i>
+        Refresh
+      </button>
+    `;
+
+    return `
+      ${TemplateComponents.contentHeader('fas fa-store', 'Shops in this Region', refreshBtn)}
+      ${TemplateComponents.infoBanner('Shops are automatically populated from all locations in this region.')}
+      ${TemplateComponents.entityGrid(data.allShops, 'shop')}
+    `;
+  }
+
+
+
+  _activateSheetSpecificListeners(html) {
+    // Remove buttons
+    // html.find('.remove-location').click(async (e) => await this._onRemoveFromList(e, 'linkedLocations'));
+    html.find('.remove-location').click(this._onRemoveFromRegion.bind(this)); 
+
+    // Open buttons
+    html.find('.open-location').click(async (e) => await this._onOpenDocument(e, 'location'));
+    html.find('.open-npc').click(async (e) => await this._onOpenDocument(e, 'npc'));
+    html.find('.open-shop').click(async (e) => await this._onOpenDocument(e, 'shop'));
+    html.find('.open-actor').click(async (e) => await this._onOpenDocument(e, 'actor'));
+
+    // Refresh buttons
+    html.find('.refresh-npcs').click(this._onRefreshData.bind(this));
+    html.find('.refresh-shops').click(this._onRefreshData.bind(this));
+
+    // Quick links
+    html.find('.location-link').click(async (e) => await this._onOpenDocument(e, 'location'));
+    // html.find('.cc-edit-description').click(event => this._onEditDescription(event, 'description'));
+    // html.find('.cc-edit-notes').click(event => this._onEditDescription(event, 'notes'));
+
+
+  }
+
+  async _handleDrop(data, event) {
+    if (data.type === "JournalEntry") {
+      await this._handleJournalDrop(data, event);
+    }
+  }
+
+  async _handleJournalDrop(data, event) {
+    const journal = await fromUuid(data.uuid);
+    if (!journal || journal.uuid === this.document.uuid) return;
+
+    const journalType = journal.getFlag("campaign-codex", "type");
+    
+    if (journalType === "location") {
+      await this._saveFormData();
+      await game.campaignCodex.linkRegionToLocation(this.document, journal);
+      this.render(false);
+    }
+  }
+
+  async _onRefreshData(event) {
+    this.render(false);
+    ui.notifications.info("Region data refreshed!");
+  }
+
+  getSheetType() {
+    return "region";
+  }
+}

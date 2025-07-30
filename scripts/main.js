@@ -1,0 +1,484 @@
+import { CampaignManager } from './campaign-manager.js';
+import { LocationSheet } from './sheets/location-sheet.js';
+import { ShopSheet } from './sheets/shop-sheet.js';
+import { NPCSheet } from './sheets/npc-sheet.js';
+import { RegionSheet } from './sheets/region-sheet.js';
+import { CleanUp } from './cleanup.js';
+import { SimpleCampaignCodexExporter } from './campaign-codex-exporter.js';
+import { CampaignCodexJournalConverter } from './campaign-codex-convertor.js';
+
+
+
+Hooks.once('init', async function() {
+  console.log('Campaign Codex | Initializing');
+  // CONFIG.debug.hooks = true;
+
+  // Register sheet classes
+  DocumentSheetConfig.registerSheet(JournalEntry, "campaign-codex", LocationSheet, {
+    makeDefault: false,
+    label: "Campaign Codex: Location"
+  });
+
+  DocumentSheetConfig.registerSheet(JournalEntry, "campaign-codex", ShopSheet, {
+    makeDefault: false,
+    label: "Campaign Codex: Shop"
+  });
+
+  DocumentSheetConfig.registerSheet(JournalEntry, "campaign-codex", NPCSheet, {
+    makeDefault: false,
+    label: "Campaign Codex: NPC"
+  });
+
+  DocumentSheetConfig.registerSheet(JournalEntry, "campaign-codex", RegionSheet, {
+    makeDefault: false,
+    label: "Campaign Codex: Region"
+  });
+
+  // Register settings
+  game.settings.register("campaign-codex", "showPlayerNotes", {
+    name: "Show Player Notes Section",
+    hint: "Allow players to add their own notes",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+  game.settings.register("campaign-codex", "useOrganizedFolders", {
+    name: "Organize in Folders",
+    hint: "Automatically create and organize Campaign Codex journals in folders",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+  console.log('Campaign Codex | Sheets registered');
+});
+
+Hooks.once('ready', async function() {
+  console.log('Campaign Codex | Ready');
+  
+  // Initialize the campaign manager
+  game.campaignCodex = new CampaignManager();
+  game.campaignCodexCleanup = new CleanUp();
+
+  // Create organization folders if setting is enabled
+  if (game.settings.get("campaign-codex", "useOrganizedFolders")) {
+    await ensureCampaignCodexFolders();
+  }
+});
+
+// Ensure Campaign Codex folders exist
+async function ensureCampaignCodexFolders() {
+  const folderNames = {
+    "Campaign Codex - Locations": "location",
+    "Campaign Codex - Shops": "shop", 
+    "Campaign Codex - NPCs": "npc",
+    "Campaign Codex - Regions": "region"
+  };
+
+  for (const [folderName, type] of Object.entries(folderNames)) {
+    let folder = game.folders.find(f => f.name === folderName && f.type === "JournalEntry");
+    
+    if (!folder) {
+      await Folder.create({
+        name: folderName,
+        type: "JournalEntry",
+        color: getFolderColor(type),
+        flags: {
+          "campaign-codex": {
+            type: type,
+            autoOrganize: true
+          }
+        }
+      });
+      console.log(`Campaign Codex | Created folder: ${folderName}`);
+    }
+  }
+}
+
+function getFolderColor(type) {
+  const colors = {
+    location: "#28a745",
+    shop: "#6f42c1", 
+    npc: "#fd7e14",
+    region: "#20c997"
+  };
+  return colors[type] || "#999999";
+}
+
+// Get appropriate folder for document type
+function getCampaignCodexFolder(type) {
+  if (!game.settings.get("campaign-codex", "useOrganizedFolders")) return null;
+  
+  const folderNames = {
+    location: "Campaign Codex - Locations",
+    shop: "Campaign Codex - Shops",
+    npc: "Campaign Codex - NPCs", 
+    region: "Campaign Codex - Regions"
+  };
+  
+  const folderName = folderNames[type];
+  return game.folders.find(f => f.name === folderName && f.type === "JournalEntry");
+}
+
+// Add context menu options to actors
+Hooks.on('getActorDirectoryEntryContext', (html, options) => {
+  options.push({
+    name: "Create NPC Journal",
+    icon: '<i class="fas fa-user"></i>',
+    condition: li => {
+      const actorUuid = li.data("uuid") || `Actor.${li.data("documentId")}`;
+      const actor = fromUuidSync(actorUuid);
+      return actor && actor.type === "npc" && !game.journal.find(j => {
+        const npcData = j.getFlag("campaign-codex", "data");
+        return npcData && npcData.linkedActor === actor.id;
+      });
+    },
+    callback: async li => {
+      const actorUuid = li.data("uuid") || `Actor.${li.data("documentId")}`;
+      const actor = await fromUuid(actorUuid);
+      if (actor) {
+        await game.campaignCodex.createNPCJournal(actor);
+      }
+    }
+  });
+});
+
+// Add journal entry creation buttons
+Hooks.on('getJournalDirectoryEntryContext', (html, options) => {
+  options.push({
+    name: "Export to Standard Journal",
+    icon: '<i class="fas fa-book"></i>',
+    condition: li => {
+      const journalUuid = li.data("uuid") || `JournalEntry.${li.data("documentId")}`;
+      const journal = fromUuidSync(journalUuid);
+      return journal && journal.getFlag("campaign-codex", "type");
+    },
+    callback: async li => {
+      const journalUuid = li.data("uuid") || `JournalEntry.${li.data("documentId")}`;
+      const journal = await fromUuid(journalUuid);
+      if (journal) {
+        await CampaignCodexJournalConverter.showExportDialog(journal);
+      }
+    }
+  });
+});
+
+
+// Campaign Codex Export/Import buttons
+Hooks.on('renderJournalDirectory', (app, html, data) => {
+    if (!game.user.isGM) return;
+
+  // Remove any existing buttons to prevent duplicates
+  html.find('.campaign-codex-export-buttons').remove();
+  
+  const hasCampaignCodex = game.journal.some(j => j.getFlag("campaign-codex", "type"));
+  
+  // Create button container
+  const buttonContainer = $(`
+    <div class="campaign-codex-export-buttons" style="margin: 8px">
+      ${hasCampaignCodex ? `
+        <button class="export-campaign-codex-btn" type="button" title="Export all Campaign Codex content to compendium" style="flex: 1; padding: 4px 8px; font-size: 11px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; height: auto">
+          <i class="fas fa-download"></i> Export Campaign Codex
+        </button>
+      ` : ''}
+      <button class="import-campaign-codex-btn" type="button" title="Import Campaign Codex content from compendium" style="flex: 1; padding: 4px 8px; font-size: 11px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; height: auto">
+        <i class="fas fa-upload"></i> Import Campaign Codex
+      </button>
+    </div>
+  `);
+
+  // Insert at the bottom of the directory
+  html.find('.directory-footer').append(buttonContainer);
+  
+  // If no directory-footer exists, append to the end
+  if (html.find('.directory-footer').length === 0) {
+    html.find('.directory-list').after(buttonContainer);
+  }
+
+// Event listeners for the buttons
+  html.find('.export-campaign-codex-btn').click(() => {
+    SimpleCampaignCodexExporter.exportCampaignCodexToCompendium();
+  });
+
+  html.find('.import-campaign-codex-btn').click(() => {
+    SimpleCampaignCodexExporter.importCampaignCodexFromCompendium();
+  });
+
+
+  // Create the button container
+  const buttonGrouphead = $(`
+    <div class="campaign-codex-buttons" style="margin: 8px 0; display: flex; gap: 4px; flex-wrap: wrap;">
+      <button class="create-region-btn" type="button" title="Create New Region" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #20c997; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        <i class="fas fa-globe"></i>
+      </button>
+      <button class="create-location-btn" type="button" title="Create New Location" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        <i class="fas fa-map-marker-alt"></i>
+      </button>
+      <button class="create-shop-btn" type="button" title="Create New Shop" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        <i class="fas fa-store"></i>
+      </button>
+      <button class="create-npc-btn" type="button" title="Create New NPC Journal" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #fd7e14; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        <i class="fas fa-user"></i>
+      </button>
+    </div>
+  `);
+
+  // Insert into the directory header
+  const directoryHeader = html.find('.directory-header');
+  directoryHeader.append(buttonGrouphead);
+
+  // Event listeners for the buttons
+  html.find('.create-location-btn').click(async () => {
+    const name = await promptForName("Location");
+    if (name) await game.campaignCodex.createLocationJournal(name);
+  });
+
+  html.find('.create-shop-btn').click(async () => {
+    const name = await promptForName("Shop");
+    if (name) await game.campaignCodex.createShopJournal(name);
+  });
+
+  html.find('.create-npc-btn').click(async () => {
+    const name = await promptForName("NPC Journal");
+    if (name) await game.campaignCodex.createNPCJournal(null, name);
+  });
+
+  html.find('.create-region-btn').click(async () => {
+    const name = await promptForName("Region");
+    if (name) await game.campaignCodex.createRegionJournal(name);
+  });
+});
+
+
+
+// Force correct sheet to open immediately upon creation
+Hooks.on('createJournalEntry', async (document, options, userId) => {
+  if (game.user.id !== userId) return;
+  
+  const journalType = document.getFlag("campaign-codex", "type");
+  if (!journalType) return;
+
+  if (document.pack) {
+    console.log("Campaign Codex | Skipping auto-open for compendium document");
+    return;
+  }
+
+  // Move to appropriate folder
+  const folder = getCampaignCodexFolder(journalType);
+  if (folder) {
+    await document.update({ folder: folder.id });
+  }
+
+  // Set the correct sheet type immediately
+  let sheetClass = null;
+  switch (journalType) {
+    case "location":
+      sheetClass = "campaign-codex.LocationSheet";
+      break;
+    case "shop":
+      sheetClass = "campaign-codex.ShopSheet";
+      break;
+    case "npc":
+      sheetClass = "campaign-codex.NPCSheet";
+      break;
+    case "region":
+      sheetClass = "campaign-codex.RegionSheet";
+      break;
+  }
+
+  if (sheetClass) {
+    await document.update({
+      "flags.core.sheetClass": sheetClass
+    });
+  }
+
+  // Open the correct sheet
+  setTimeout(() => {
+    let targetSheet = null;
+
+    switch (journalType) {
+      case "location":
+        targetSheet = LocationSheet;
+        break;
+      case "shop":
+        targetSheet = ShopSheet;
+        break;
+      case "npc":
+        targetSheet = NPCSheet;
+        break;
+      case "region":
+        targetSheet = RegionSheet;
+        break;
+    }
+
+    if (targetSheet) {
+      if (document.sheet.rendered) {
+        document.sheet.close();
+      }
+      const sheet = new targetSheet(document);
+      sheet.render(true);
+      document._campaignCodexSheet = sheet;
+    }
+  }, 100);
+});
+
+// Auto-select appropriate sheet based on flags for existing documents
+Hooks.on('renderJournalEntry', (journal, html, data) => {
+  const journalType = journal.getFlag("campaign-codex", "type");
+  if (!journalType) return;
+
+  const currentSheetName = journal.sheet.constructor.name;
+  let targetSheet = null;
+
+  switch (journalType) {
+    case "location":
+      if (currentSheetName !== "LocationSheet") targetSheet = LocationSheet;
+      break;
+    case "shop":
+      if (currentSheetName !== "ShopSheet") targetSheet = ShopSheet;
+      break;
+    case "npc":
+      if (currentSheetName !== "NPCSheet") targetSheet = NPCSheet;
+      break;
+    case "region":
+      if (currentSheetName !== "RegionSheet") targetSheet = RegionSheet;
+      break;
+  }
+
+  if (targetSheet) {
+    setTimeout(() => {
+      journal.sheet.close();
+      const sheet = new targetSheet(journal);
+      sheet.render(true);
+      journal._campaignCodexSheet = sheet;
+    }, 100);
+  }
+});
+
+// Helper function to prompt for name
+async function promptForName(type) {
+  return new Promise((resolve) => {
+    new Dialog({
+      title: `Create New ${type}`,
+      content: `
+        <form class="flexcol">
+          <div class="form-group">
+            <label>Name:</label>
+            <input type="text" name="name" placeholder="Enter ${type.toLowerCase()} name..." autofocus style="width: 100%;" />
+          </div>
+        </form>
+      `,
+      buttons: {
+        create: {
+          icon: '<i class="fas fa-check"></i>',
+          label: "Create",
+          callback: (html) => {
+            const name = html.find('[name="name"]').val().trim();
+            resolve(name || `New ${type}`);
+          }
+        },
+        cancel: {
+          icon: '<i class="fas fa-times"></i>',
+          label: "Cancel",
+          callback: () => resolve(null)
+        }
+      },
+      default: "create",
+      render: (html) => {
+        html.find('input[name="name"]').focus().keypress((e) => {
+          if (e.which === 13) {
+            html.closest('.dialog').find('.dialog-button.create button').click();
+          }
+        });
+      }
+    }).render(true);
+  });
+}
+
+
+// Handle bidirectional relationship updates and sheet refreshing
+Hooks.on('updateJournalEntry', async (document, changes, options, userId) => {
+  if (game.user.id !== userId) return;
+  
+  const type = document.getFlag("campaign-codex", "type");
+  if (!type) return;
+
+  try {
+    // Handle relationship updates first
+    await game.campaignCodex.handleRelationshipUpdates(document, changes, type);
+    
+    // Then refresh all related open sheets
+    setTimeout(async () => {
+      const documentId = document.id;
+      
+      // Get all open applications
+      for (const app of Object.values(ui.windows)) {
+        if (!app.document || !app.document.getFlag) continue;
+        
+        const appDocumentId = app.document.id;
+        const appType = app.document.getFlag("campaign-codex", "type");
+        
+        // Check if this is a Campaign Codex sheet that needs refreshing
+        if (appType && (appDocumentId === documentId || app._isRelatedDocument?.(documentId))) {
+          // console.log(`Campaign Codex | Refreshing ${appType} sheet: ${app.document.name}`);
+          app.render(false);
+        }
+      }
+    }, 150); // Slightly longer delay to ensure relationship updates complete
+    
+  } catch (error) {
+    console.error('Campaign Codex | Error in updateJournalEntry hook:', error);
+  }
+});
+
+Hooks.on('updateActor', async (actor, changes, options, userId) => {
+  if (game.user.id !== userId) return;
+  
+  // Only care about image changes
+  if (!changes.img) return;
+  
+  console.log(`Campaign Codex | Actor image updated: ${actor.name}`);
+  
+  // Find all NPC journals that link to this actor
+  const linkedNPCs = game.journal.filter(j => {
+    const npcData = j.getFlag("campaign-codex", "data");
+    return npcData && npcData.linkedActor === actor.id;
+  });
+  
+  if (linkedNPCs.length === 0) return;
+  
+  console.log(`Campaign Codex | Found ${linkedNPCs.length} NPC journals linked to actor ${actor.name}`);
+  
+  // Refresh any open NPC sheets for this actor
+  setTimeout(async () => {
+    for (const npcJournal of linkedNPCs) {
+      // Find and refresh the NPC sheet if it's open
+      for (const app of Object.values(ui.windows)) {
+        if (app.document && app.document.id === npcJournal.id) {
+          console.log(`Campaign Codex | Refreshing NPC sheet: ${npcJournal.name}`);
+          app.render(false);
+          break;
+        }
+      }
+      
+      // Also refresh any related sheets that might show this NPC
+      setTimeout(async () => {
+        for (const app of Object.values(ui.windows)) {
+          if (!app.document || !app.document.getFlag || app.document.id === npcJournal.id) continue;
+          
+          const appType = app.document.getFlag("campaign-codex", "type");
+          if (appType && app._isRelatedDocument && app._isRelatedDocument(npcJournal.id)) {
+            console.log(`Campaign Codex | Refreshing related sheet showing NPC: ${app.document.name}`);
+            app.render(false);
+          }
+        }
+      }, 100);
+    }
+  }, 150);
+});
+
+// Export folder management functions for use in campaign manager
+window.getCampaignCodexFolder = getCampaignCodexFolder;
