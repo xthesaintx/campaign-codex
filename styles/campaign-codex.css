@@ -1269,28 +1269,9 @@
   outline: 0 solid transparent;
 }
 
-/* Add to styles/campaign-codex.css */
+/*DROP*/
 
-/* Shop toggle controls */
-.campaign-codex .shop-toggles {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 8px;
-}
 
-.campaign-codex .toggle-control {
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
-}
-
-.campaign-codex .toggle-control:hover {
-  color: rgba(255, 255, 255, 1) !important;
-}
-
-.campaign-codex .toggle-control input[type="checkbox"] {
-  accent-color: var(--cc-accent);
-  cursor: pointer;
-}
 
 /* Drop to map dialog */
 .drop-to-map-dialog .npc-selection label:hover {
@@ -1300,6 +1281,63 @@
 .drop-to-map-dialog .npc-selection input[type="checkbox"] {
   accent-color: var(--cc-accent);
 }
+
+
+
+/* NPC Dropper Dialog Styles */
+.drop-to-map-dialog {
+  padding: 8px;
+}
+
+.drop-to-map-dialog .npc-selection {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fafafa;
+}
+
+.drop-to-map-dialog .npc-selection label {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.drop-to-map-dialog .npc-selection label:hover {
+  background: #e9ecef !important;
+  border-color: var(--cc-accent);
+  transform: translateY(-1px);
+}
+
+.drop-to-map-dialog .npc-selection input[type="checkbox"] {
+  accent-color: var(--cc-accent);
+  cursor: pointer;
+}
+
+.drop-to-map-dialog p {
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Enhanced drop to map button */
+.campaign-codex .drop-to-map-btn {
+  background: var(--cc-primary);
+  border-color: var(--cc-primary);
+  color: white;
+}
+
+.campaign-codex .drop-to-map-btn:hover {
+  background: var(--cc-primary-dark);
+  border-color: var(--cc-primary-dark);
+  transform: translateY(-1px);
+}
+
+.campaign-codex .drop-to-map-btn i {
+  margin-right: 4px;
+}
+
+
+/*LOOT INVENTORY AND SLIDERS*/
 
 /* Inventory table responsive grid for loot mode */
 .campaign-codex .inventory-table.loot-mode .table-header,
@@ -1316,5 +1354,77 @@
 .campaign-codex .drop-to-map-btn:hover {
   background: var(--cc-primary-dark);
   border-color: var(--cc-primary-dark);
+}
+
+/* Shop toggle controls */
+.campaign-codex .shop-toggles {
+  padding-top: 12px;
+}
+
+/* Shop toggle controls */
+.campaign-codex .sheet-form .shop-toggles {
+    padding-top: 0px;
+    cursor: pointer;
+    position: absolute;
+    top: 32px;
+    right: 82px;
+}
+
+.campaign-codex .sheet-form .toggle-control {
+  position: fixed;
+  width: 30px;
+  height: 16px;
+}
+
+.campaign-codex .toggle-control {
+  position: relative;
+  width: 30px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.campaign-codex .toggle-control input[type="checkbox"] {
+  display: none;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #555;
+  transition: 0.4s;
+  border-radius: 8px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #FFF;
+  transition: 0.4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--cc-accent);
+}
+
+input:checked + .slider:before {
+  transform: translateX(13px);
+}
+
+.campaign-codex .shop-toggles .stat-label {
+  font-size: 10px;
+  color: var(--cc-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+  margin-right:5px;
 }
 

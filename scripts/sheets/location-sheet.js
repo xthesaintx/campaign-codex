@@ -133,50 +133,59 @@ export class LocationSheet extends CampaignCodexBaseSheet {
     `;
   }
 
-  
 
 
-  _generateNPCsTab(data) {
-    // Create separate sections for direct NPCs and shop NPCs
-    let content = `
-      ${TemplateComponents.contentHeader('fas fa-users', 'NPCs at this Location')}
-      ${TemplateComponents.dropZone('npc', 'fas fa-user-plus', 'Add NPCs', 'Drag NPCs or actors here to add them directly to this location')}
+_generateNPCsTab(data) {
+  // Only show drop button for direct NPCs (not shop NPCs)
+  const dropToMapBtn = (canvas.scene && data.directNPCs && data.directNPCs.length > 0) ? `
+    <button type="button" class="refresh-btn drop-npcs-to-map" title="Drop direct NPCs to current scene">
+      <i class="fas fa-map"></i>
+      Drop Direct NPCs
+    </button>
+  ` : '';
+
+  // Create separate sections for direct NPCs and shop NPCs
+  let content = `
+    ${TemplateComponents.contentHeader('fas fa-users', 'NPCs at this Location', dropToMapBtn)}
+    ${TemplateComponents.dropZone('npc', 'fas fa-user-plus', 'Add NPCs', 'Drag NPCs or actors here to add them directly to this location')}
+  `;
+
+  // Direct NPCs section
+  if (data.directNPCs.length > 0) {
+    content += `
+      <div class="npc-section">
+        <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
+          <i class="fas fa-user" style="color: var(--cc-accent); margin-right: 8px;"></i>
+          Direct NPCs (${data.directNPCs.length}) 
+          ${canvas.scene ? '<button type="button" class="drop-direct-npcs-btn" style="margin-left: 8px; padding: 2px 6px; font-size: 10px; background: var(--cc-primary); color: white; border: none; border-radius: 3px; cursor: pointer;" title="Drop only direct NPCs"><i class="fas fa-map"></i></button>' : ''}
+        </h3>
+        ${TemplateComponents.entityGrid(data.directNPCs, 'npc', true)}
+      </div>
     `;
-
-    // Direct NPCs section
-    if (data.directNPCs.length > 0) {
-      content += `
-        <div class="npc-section">
-          <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
-            <i class="fas fa-user" style="color: var(--cc-accent); margin-right: 8px;"></i>
-            Direct NPCs (${data.directNPCs.length})
-          </h3>
-          ${TemplateComponents.entityGrid(data.directNPCs, 'npc', true)}
-        </div>
-      `;
-    }
-
-    // Shop NPCs section
-    if (data.shopNPCs.length > 0) {
-      content += `
-        <div class="npc-section">
-          <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
-            <i class="fas fa-book-open" style="color: var(--cc-accent); margin-right: 8px;"></i>
-            Shop NPCs (${data.shopNPCs.length})
-          </h3>
-          ${TemplateComponents.infoBanner('NPCs automatically populated from entries at this location.')}
-          ${TemplateComponents.entityGrid(data.shopNPCs, 'npc', true)}
-        </div>
-      `;
-    }
-
-    // If no NPCs at all
-    if (data.allNPCs.length === 0) {
-      content += TemplateComponents.emptyState('npc');
-    }
-
-    return content;
   }
+
+  // Shop NPCs section - no drop button for these
+  if (data.shopNPCs.length > 0) {
+    content += `
+      <div class="npc-section">
+        <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
+          <i class="fas fa-book-open" style="color: var(--cc-accent); margin-right: 8px;"></i>
+          Shop NPCs (${data.shopNPCs.length})
+          <span style="margin-left: 8px; font-size: 10px; color: #666; font-weight: normal;">(Auto-populated)</span>
+        </h3>
+        ${TemplateComponents.infoBanner('NPCs automatically populated from entries at this location. Manage them through their respective shops.')}
+        ${TemplateComponents.entityGrid(data.shopNPCs, 'npc', true)}
+      </div>
+    `;
+  }
+
+  // If no NPCs at all
+  if (data.allNPCs.length === 0) {
+    content += TemplateComponents.emptyState('npc');
+  }
+
+  return content;
+}
 
   _generateShopsTab(data) {
     return `
@@ -266,5 +275,21 @@ async _handleJournalDrop(data, event) {
 
 
 
-
+// ADD this method to handle the drop to map button click:
+async _onDropNPCsToMapClick(event) {
+  event.preventDefault();
+  
+  // Get current data to access direct NPCs
+  const locationData = this.document.getFlag("campaign-codex", "data") || {};
+  const directNPCs = await CampaignCodexLinkers.getDirectNPCs(locationData.linkedNPCs || []);
+  
+  // Only drop direct NPCs for locations
+  if (directNPCs && directNPCs.length > 0) {
+    await this._onDropNPCsToMap(directNPCs, { 
+      title: `Drop ${this.document.name} Direct NPCs to Map` 
+    });
+  } else {
+    ui.notifications.warn("No direct NPCs with linked actors found to drop!");
+  }
+}
 }

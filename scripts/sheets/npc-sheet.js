@@ -3,6 +3,7 @@ import { TemplateComponents } from './template-components.js';
 import { DescriptionEditor } from './editors/description-editor.js';
 import { CampaignCodexLinkers } from './linkers.js';
 
+
 export class NPCSheet extends CampaignCodexBaseSheet {
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {

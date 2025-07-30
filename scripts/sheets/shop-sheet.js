@@ -17,11 +17,13 @@ export class ShopSheet extends CampaignCodexBaseSheet {
   async getData() {
     const data = await super.getData();
     const shopData = this.document.getFlag("campaign-codex", "data") || {};
+    data.isLoot = shopData.isLoot || false;
+    data.hideInventory = shopData.hideInventory || false;
 
     // Get linked documents
     data.linkedNPCs = await CampaignCodexLinkers.getLinkedNPCs(shopData.linkedNPCs || []);
     data.linkedLocation = shopData.linkedLocation ? await CampaignCodexLinkers.getLinkedLocation(shopData.linkedLocation) : null;
-data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData.inventory || []);
+    data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData.inventory || []);
     
     // Sheet configuration
     data.sheetType = "shop";
@@ -32,11 +34,11 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
     // Navigation tabs
     data.tabs = [
       { key: 'info', label: 'Info', icon: 'fas fa-info-circle', active: this._currentTab === 'info' },
-      { key: 'inventory', label: 'Inventory', icon: 'fas fa-boxes', active: this._currentTab === 'inventory',
+      ...(data.hideInventory ? [] : [{ key: 'inventory', label: 'Inventory', icon: 'fas fa-boxes', active: this._currentTab === 'inventory',
       statistic: {
         value: data.inventory.length,
         color: '#28a745'
-      } },
+      } }]),
       { key: 'npcs', label: 'NPCs', icon: 'fas fa-users', active: this._currentTab === 'npcs',
       statistic: {
         value: data.linkedNPCs.length,
@@ -58,17 +60,30 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
       ...data.linkedNPCs.map(npc => ({ ...npc, type: 'npc' }))
     ];
     
-
-
-        // Custom header content (location info)
+  if (data.linkedLocation || data.isLoot !== undefined) {
+    let headerContent = '';
+    
     if (data.linkedLocation) {
-      data.customHeaderContent = `
+      headerContent += `
         <div class="region-info">
           <span class="region-label">Located:</span>
           <span class="region-name region-link" data-region-uuid="${data.linkedLocation.uuid}" style="cursor: pointer; color: var(--cc-accent);">${data.linkedLocation.name}</span>
         </div>
       `;
     }
+    
+    // Add toggle controls
+    headerContent += `
+      <div class="shop-toggles" style="margin-top: 8px; display: flex; gap: 12px; align-items: center; justify-content: center;">
+      <span class="stat-label">Hide Inventory</span>
+        <label class="toggle-control">
+          <input type="checkbox" class="hide-inventory-toggle" ${data.hideInventory ? 'checked' : ''} style="margin: 0;"><span class="slider"></span>
+        </label>
+      </div>
+    `;
+    
+    data.customHeaderContent = headerContent;
+  }
     
     // Tab panels
     data.tabPanels = [
@@ -77,11 +92,11 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
         active: this._currentTab === 'info',
         content: this._generateInfoTab(data)
       },
-      {
-        key: 'inventory',
+      ...(data.hideInventory ? [] : [{
+        key: 'inventory', 
         active: this._currentTab === 'inventory',
         content: this._generateInventoryTab(data)
-      },
+      }]),
       {
         key: 'npcs', 
         active: this._currentTab === 'npcs',
@@ -142,28 +157,49 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
   }
 
   _generateInventoryTab(data) {
-    return `
-      ${TemplateComponents.contentHeader('fas fa-boxes', 'Inventory')}
-      ${TemplateComponents.markupControl(data.markup)}
-      ${TemplateComponents.dropZone('item', 'fas fa-plus-circle', 'Add Items', 'Drag items from the items directory to add them to inventory')}
-      ${TemplateComponents.inventoryTable(data.inventory)}
-    `;
-  }
+  const markupSection = data.isLoot ? '' : TemplateComponents.markupControl(data.markup);
+  
+  return `
+    ${TemplateComponents.contentHeader('fas fa-boxes', data.isLoot ? 'Loot' : 'Inventory')}
+    <div class="shop-toggles">
+      <span class="stat-label">Loot Mode</span>
+      <label class="toggle-control">
+        <input type="checkbox" class="shop-loot-toggle" ${data.isLoot ? 'checked' : ''} style="margin: 0;"><span class="slider"></span>
+      </label></div>
+    ${markupSection}
+    ${TemplateComponents.dropZone('item', 'fas fa-plus-circle', 'Add Items', 'Drag items from the items directory to add them to inventory')}
+    ${TemplateComponents.inventoryTable(data.inventory, data.isLoot)}
+  `;
+}
 
-  _generateNPCsTab(data) {
-    return `
-      ${TemplateComponents.contentHeader('fas fa-users', 'Entry NPCs')}
-      ${TemplateComponents.dropZone('npc', 'fas fa-user-plus', 'Add NPCs', 'Drag NPCs or actors here to associate them with this entry')}
-      ${TemplateComponents.entityGrid(data.linkedNPCs, 'npc', true)}
-    `;
-  }
+
+
+
+
+
+
+_generateNPCsTab(data) {
+  const dropToMapBtn = canvas.scene ? `
+    <button type="button" class="refresh-btn drop-to-map-btn" title="Drop NPCs to current scene">
+      <i class="fas fa-map"></i>
+      Drop to Map
+    </button>
+  ` : '';
+
+  return `
+    ${TemplateComponents.contentHeader('fas fa-users', 'NPCs', dropToMapBtn)}
+    ${TemplateComponents.dropZone('npc', 'fas fa-user-plus', 'Add NPCs', 'Drag NPCs or actors here to associate them with this location')}
+    ${TemplateComponents.entityGrid(data.linkedNPCs, 'npc', true)}
+  `;
+}
+
 
 // Add these methods to the ShopSheet class in scripts/sheets/shop-sheet.js
   _activateSheetSpecificListeners(html) {
     // Markup input
     html.find('.markup-input').change(this._onMarkupChange.bind(this));
-    // html.find('.cc-edit-description').click(event => this._onEditDescription(event, 'description'));
-    // html.find('.cc-edit-notes').click(event => this._onEditDescription(event, 'notes'));
+    html.find('.shop-loot-toggle').change(this._onLootToggle.bind(this));
+    html.find('.hide-inventory-toggle').change(this._onHideInventoryToggle.bind(this));
 
     // Remove buttons
     html.find('.remove-npc').click(async (e) => await this._onRemoveFromList(e, 'linkedNPCs'));
@@ -205,6 +241,29 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
     }
   }
 
+async _onLootToggle(event) {
+  const isLoot = event.target.checked;
+  const currentData = this.document.getFlag("campaign-codex", "data") || {};
+  currentData.isLoot = isLoot;
+  await this.document.setFlag("campaign-codex", "data", currentData);
+  this.render(false);
+  ui.notifications.info(`${isLoot ? 'Enabled' : 'Disabled'} loot mode`);
+}
+
+async _onHideInventoryToggle(event) {
+  const hideInventory = event.target.checked;
+  const currentData = this.document.getFlag("campaign-codex", "data") || {};
+  currentData.hideInventory = hideInventory;
+  await this.document.setFlag("campaign-codex", "data", currentData);
+  
+  // If we're currently on the inventory tab and it's being hidden, switch to info tab
+  if (hideInventory && this._currentTab === 'inventory') {
+    this._currentTab = 'info';
+  }
+  
+  this.render(false);
+  ui.notifications.info(`${hideInventory ? 'Hidden' : 'Shown'} inventory in sidebar`);
+}
 
 
 async _handleItemDrop(data, event) {
@@ -419,8 +478,9 @@ _onItemDragStart(event) {
     shopId: this.document.id,
     shopName: this.document.name
   };
-  
-  event.dataTransfer.setData("text/plain", JSON.stringify(dragData));
+    event.originalEvent.dataTransfer.setData("text/plain", JSON.stringify(dragData));
+
+  // event.dataTransfer.setData("text/plain", JSON.stringify(dragData));
   
   // Visual feedback
   event.currentTarget.style.opacity = "0.5";
@@ -430,4 +490,22 @@ _onItemDragStart(event) {
     }
   }, 100);
 }
+
+// ADD this method to handle the drop to map button click:
+async _onDropNPCsToMapClick(event) {
+  event.preventDefault();
+  
+  // Get current data to access linked NPCs
+  const shopData = this.document.getFlag("campaign-codex", "data") || {};
+  const linkedNPCs = await CampaignCodexLinkers.getLinkedNPCs(shopData.linkedNPCs || []);
+  
+  if (linkedNPCs && linkedNPCs.length > 0) {
+    await this._onDropNPCsToMap(linkedNPCs, { 
+      title: `Drop ${this.document.name} NPCs to Map` 
+    });
+  } else {
+    ui.notifications.warn("No NPCs with linked actors found to drop!");
+  }
+}
+
 }

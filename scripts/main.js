@@ -6,7 +6,8 @@ import { RegionSheet } from './sheets/region-sheet.js';
 import { CleanUp } from './cleanup.js';
 import { SimpleCampaignCodexExporter } from './campaign-codex-exporter.js';
 import { CampaignCodexJournalConverter } from './campaign-codex-convertor.js';
-
+import { NPCDropper } from './npc-dropper.js';
+import { CampaignCodexTokenPlacement } from './token-placement.js';
 
 
 Hooks.once('init', async function() {
@@ -62,6 +63,9 @@ Hooks.once('ready', async function() {
   // Initialize the campaign manager
   game.campaignCodex = new CampaignManager();
   game.campaignCodexCleanup = new CleanUp();
+  game.campaignCodexNPCDropper = NPCDropper;
+  game.campaignCodexTokenPlacement = CampaignCodexTokenPlacement;
+  window.CampaignCodexTokenPlacement = CampaignCodexTokenPlacement;
 
   // Make the exporter globally available for button clicks
   window.SimpleCampaignCodexExporter = SimpleCampaignCodexExporter;

@@ -232,4 +232,17 @@ export class RegionSheet extends CampaignCodexBaseSheet {
   getSheetType() {
     return "region";
   }
+
+
+// Add the drop to map handler
+async _onDropToMap(event) {
+  const data = await this.getData();
+  await NPCDropper.dropNPCsToScene(data.linkedNPCs, {
+    title: `Drop ${this.document.name} NPCs to Map`,
+    showHiddenToggle: true
+  });
+}
+
+
+  
 }

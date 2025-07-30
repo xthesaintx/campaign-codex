@@ -53,6 +53,7 @@ async getData() {
     this._activateSheetSpecificListeners(html);
     html.find('.cc-edit-description').click(event => this._onEditDescription(event, 'description'));
     html.find('.cc-edit-notes').click(event => this._onEditDescription(event, 'notes'));
+    html.find('.drop-npcs-to-map, .drop-to-map-btn, .drop-direct-npcs-btn').click(this._onDropNPCsToMapClick.bind(this));
 
   }
 
@@ -675,6 +676,53 @@ async _onEditDescription(event, fromlocation) {
   event.stopPropagation();
   // Create a new instance of your editor application and render it.
   new DescriptionEditor(this.document, { field: fromlocation }).render(true);
+}
+
+
+/**
+ * Drop NPCs to the current scene map
+ * @param {Array} npcs - Array of NPC objects to drop
+ * @param {Object} options - Options for the drop operation
+ */
+async _onDropNPCsToMap(npcs, options = {}) {
+  if (!npcs || npcs.length === 0) {
+    ui.notifications.warn("No NPCs available to drop to map!");
+    return;
+  }
+
+  // Filter NPCs that have linked actors
+  const npcsWithActors = npcs.filter(npc => npc.actor);
+  
+  if (npcsWithActors.length === 0) {
+    ui.notifications.warn("No NPCs with linked actors found to drop!");
+    return;
+  }
+
+  // Use the NPCDropper class
+  try {
+    const result = await game.campaignCodexNPCDropper.dropNPCsToScene(npcsWithActors, options);
+    
+    if (result && result.success > 0) {
+      console.log(`Campaign Codex | Successfully dropped ${result.success} NPCs to scene`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Campaign Codex | Error dropping NPCs to map:', error);
+    ui.notifications.error("Failed to drop NPCs to map. Check console for details.");
+  }
+}
+
+/**
+ * Handle click event for drop NPCs to map button
+ * This should be overridden by subclasses to provide the appropriate NPC data
+ */
+async _onDropNPCsToMapClick(event) {
+  event.preventDefault();
+  
+  // Default implementation - subclasses should override this
+  const sheetType = this.getSheetType();
+  ui.notifications.warn(`Drop to map not implemented for ${sheetType} sheets`);
 }
 
 }
