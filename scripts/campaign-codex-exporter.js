@@ -39,7 +39,7 @@ export class SimpleCampaignCodexExporter {
       ui.notifications.info(`Exporting ${exportData.journals.size} journals, ${exportData.actors.size} actors, and ${exportData.items.size} items...`);
       await this._performExport(exportData, compendiums);
 
-      ui.notifications.info(`✅ Export complete! Compendium set "${config.baseName}" is ready.`);
+      ui.notifications.info(`Export complete! Compendium set "${config.baseName}" is ready.`);
 
     } catch (error) {
       console.error("Campaign Codex | Export Error:", error);
@@ -400,15 +400,23 @@ export class SimpleCampaignCodexExporter {
       ui.notifications.info(`Creating new compendium: ${name}`);
     }
     
-    return await CompendiumCollection.createCompendium({
+    // **FIX**: Per user's research, the correct method is to create the compendium
+    // and then assign the folder in a separate step using `setFolder`.
+    const pack = await CompendiumCollection.createCompendium({
       type: documentType,
       label: name,
       name: slug,
       pack: packId,
-      system: game.system.id,
-      folder: folderId
+      system: game.system.id
     });
+    
+    if (folderId) {
+      await pack.setFolder(folderId);
+    }
+    
+    return pack;
   }
+// await game.packs.get("world.my-campaign-cc-items").setFolder("xvdy9QsPp1ITklF5")
 
   /**
    * Prompts the user to confirm the export details.

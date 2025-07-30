@@ -1269,3 +1269,52 @@
   outline: 0 solid transparent;
 }
 
+/* Add to styles/campaign-codex.css */
+
+/* Shop toggle controls */
+.campaign-codex .shop-toggles {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 8px;
+}
+
+.campaign-codex .toggle-control {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.campaign-codex .toggle-control:hover {
+  color: rgba(255, 255, 255, 1) !important;
+}
+
+.campaign-codex .toggle-control input[type="checkbox"] {
+  accent-color: var(--cc-accent);
+  cursor: pointer;
+}
+
+/* Drop to map dialog */
+.drop-to-map-dialog .npc-selection label:hover {
+  background: #e9ecef !important;
+}
+
+.drop-to-map-dialog .npc-selection input[type="checkbox"] {
+  accent-color: var(--cc-accent);
+}
+
+/* Inventory table responsive grid for loot mode */
+.campaign-codex .inventory-table.loot-mode .table-header,
+.campaign-codex .inventory-table.loot-mode .inventory-item {
+  grid-template-columns: 60px 1fr 120px 100px;
+}
+
+/* Enhanced drop to map button */
+.campaign-codex .drop-to-map-btn {
+  background: var(--cc-primary);
+  border-color: var(--cc-primary);
+}
+
+.campaign-codex .drop-to-map-btn:hover {
+  background: var(--cc-primary-dark);
+  border-color: var(--cc-primary-dark);
+}
+
