@@ -1,372 +1,306 @@
-// Redesigned & Refactored Campaign Codex Exporter
+// Campaign Codex Exporter - Revised for UUID-based systems
 export class SimpleCampaignCodexExporter {
   static CONSTANTS = {
     FLAG_SCOPE: "campaign-codex",
     FLAG_TYPE: "type",
     FLAG_DATA: "data",
-    FLAG_IS_MASTER: "isMasterReference",
-    FLAG_MASTER_DATA: "masterData",
-    MASTER_REF_NAME: "📋 Campaign Codex Master Reference",
   };
 
   // ===========================================
-  // PRIMARY PUBLIC METHODS
+  // PRIMARY PUBLIC METHOD
   // ===========================================
 
+  /**
+   * The main entry point for the export process.
+   */
   static async exportCampaignCodexToCompendium() {
     try {
+      // 1. Get user configuration for the export (e.g., compendium name)
       const config = await this._getExportConfig();
-      if (!config) return;
+      if (!config) return; // User cancelled
 
+      // 2. Create the set of new compendiums inside a dedicated folder
       const compendiums = await this._createCompendiumSet(config.baseName);
       if (!compendiums) return;
 
-      const exportData = this._collectExportData();
-      if (exportData.journals.length === 0) {
+      // 3. Collect all world journals and their linked documents
+      ui.notifications.info("Collecting all linked documents...");
+      const exportData = await this._collectExportData();
+      if (exportData.journals.size === 0) {
         ui.notifications.warn("No Campaign Codex documents found to export!");
         return;
       }
 
+      // 4. Confirm the export with the user
       const confirmed = await this._confirmExport(exportData, config.baseName);
       if (!confirmed) return;
 
-      ui.notifications.info(`Exporting ${exportData.journals.length} journals, ${exportData.actors.length} actors, and ${exportData.items.length} items...`);
+      // 5. Perform the actual export and relinking
+      ui.notifications.info(`Exporting ${exportData.journals.size} journals, ${exportData.actors.size} actors, and ${exportData.items.size} items...`);
+      await this._performExport(exportData, compendiums);
 
-      const uuidMap = await this._performExport(exportData, compendiums);
+      ui.notifications.info(`✅ Export complete! Compendium set "${config.baseName}" is ready.`);
 
-      await this._createMasterReference(exportData, compendiums, uuidMap, config);
-
-      ui.notifications.info(`Export complete! Compendium set "${config.baseName}" is ready for sharing.`);
     } catch (error) {
-      console.error("Campaign Codex Export Error:", error);
+      console.error("Campaign Codex | Export Error:", error);
       ui.notifications.error(`Export failed: ${error.message}`);
     }
   }
 
-  static async importCampaignCodexFromCompendium() {
-    try {
-      const compendiumSet = await this._selectCompendiumSet();
-      if (!compendiumSet) return;
+  // ===========================================
+  // DATA COLLECTION (Step 3)
+  // ===========================================
 
-      const strategy = await this._getImportStrategy();
-      if (!strategy) return;
+  /**
+   * Recursively finds all documents to be exported, starting from world journals.
+   * @returns {Promise<{journals: Set<JournalEntry>, actors: Set<Actor>, items: Set<Item>}>}
+   */
+  static async _collectExportData() {
+    const documents = {
+      journals: new Set(),
+      actors: new Set(),
+      items: new Set(),
+    };
+    const processedUuids = new Set(); // Prevents infinite loops
 
-      const masterRef = await this._loadMasterReference(compendiumSet.journals);
-      if (!masterRef) {
-        ui.notifications.error("No valid Campaign Codex export found in selected compendium!");
-        return;
-      }
+    // Start with all Campaign Codex journals in the world
+    const rootJournals = game.journal.filter(j => j.getFlag(this.CONSTANTS.FLAG_SCOPE, this.CONSTANTS.FLAG_TYPE));
 
-      const results = await this._performImport(compendiumSet, masterRef, strategy);
-      this._reportImportResults(results);
+    for (const journal of rootJournals) {
+      await this._recursivelyFindDocuments(journal.uuid, documents, processedUuids);
+    }
 
-      if (game.settings.get(this.CONSTANTS.FLAG_SCOPE, "useOrganizedFolders")) {
-        await this._organizeImportedDocuments();
-      }
-    } catch (error) {
-      console.error("Campaign Codex Import Error:", error);
-      ui.notifications.error(`Import failed: ${error.message}`);
+    return documents;
+  }
+
+  /**
+   * Given a starting UUID, finds the document and all documents it links to.
+   * @param {string} uuid - The UUID of the document to process.
+   * @param {object} documents - The main object holding Sets of journals, actors, and items.
+   * @param {Set<string>} processedUuids - A set of already-handled UUIDs to avoid redundant work.
+   */
+  static async _recursivelyFindDocuments(uuid, documents, processedUuids) {
+    if (!uuid || processedUuids.has(uuid)) {
+      return;
+    }
+    processedUuids.add(uuid);
+
+    const doc = await fromUuid(uuid);
+    if (!doc) {
+      console.warn(`Campaign Codex | Linked document not found for UUID: ${uuid}`);
+      return;
+    }
+
+    // Add the resolved document to the correct set
+    if (doc.documentName === "JournalEntry") {
+      documents.journals.add(doc);
+    } else if (doc.documentName === "Actor") {
+      documents.actors.add(doc);
+    } else if (doc.documentName === "Item") {
+      documents.items.add(doc);
+    }
+
+    // Now, find all UUIDs within this document and process them
+    const linkedUuids = this._extractUuidsFromDocument(doc);
+    for (const linkedUuid of linkedUuids) {
+      await this._recursivelyFindDocuments(linkedUuid, documents, processedUuids);
     }
   }
 
-  // ===========================================
-  // DATA COLLECTION
-  // ===========================================
+  /**
+   * Extracts all known UUIDs from a single Campaign Codex document's flags.
+   * @param {Document} doc - The document to parse.
+   * @returns {string[]} An array of all found UUIDs.
+   */
+  static _extractUuidsFromDocument(doc) {
+    if (doc.documentName !== "JournalEntry") {
+        return []; // Only journals have the codex data structure
+    }
 
-  static _collectExportData() {
-    const { FLAG_SCOPE, FLAG_TYPE, FLAG_DATA } = this.CONSTANTS;
-    const journals = [];
-    const actorIds = new Set();
-    const itemIds = new Set();
+    const codexData = doc.getFlag(this.CONSTANTS.FLAG_SCOPE, this.CONSTANTS.FLAG_DATA) || {};
+    const uuids = [];
 
-    for (const journal of game.journal) {
-      if (!journal.getFlag(FLAG_SCOPE, FLAG_TYPE)) continue;
-      journals.push(journal);
-      const data = journal.getFlag(FLAG_SCOPE, FLAG_DATA) || {};
-
-      if (data.linkedActor) actorIds.add(data.linkedActor);
-      if (data.inventory?.length) {
-        data.inventory.forEach(item => item.itemId && itemIds.add(item.itemId));
+    // Fields that contain a single UUID
+    const singleLinkFields = ["linkedActor", "linkedLocation", "parentRegion"];
+    for (const field of singleLinkFields) {
+      if (codexData[field]) {
+        uuids.push(codexData[field]);
       }
     }
 
-    const actors = Array.from(actorIds).map(id => game.actors.get(id)).filter(Boolean);
-    const items = Array.from(itemIds).map(id => game.items.get(id)).filter(Boolean);
+    // Fields that contain an array of UUIDs
+    const multiLinkFields = ["linkedNPCs", "linkedShops", "linkedLocations", "associates"];
+    for (const field of multiLinkFields) {
+      if (Array.isArray(codexData[field])) {
+        uuids.push(...codexData[field]);
+      }
+    }
 
-    return { journals, actors, items };
+    // Special handling for inventory items
+    if (Array.isArray(codexData.inventory)) {
+      for (const item of codexData.inventory) {
+        if (item.itemUuid) {
+          uuids.push(item.itemUuid);
+        }
+      }
+    }
+
+    return uuids.filter(Boolean); // Filter out any null/undefined entries
   }
 
 
   // ===========================================
-  // EXPORT PROCESS
+  // EXPORT PROCESS (Step 5)
   // ===========================================
 
+  /**
+   * Exports all collected documents and updates their links.
+   * @param {object} exportData - The object containing Sets of documents to export.
+   * @param {object} compendiums - The object containing the created compendium packs.
+   */
   static async _performExport(exportData, compendiums) {
-    const uuidMap = { actors: new Map(), items: new Map(), journals: new Map() };
+    const uuidMap = new Map();
+    const compendiumFolders = {
+        journals: new Map(), // Map<folderName, folderId>
+        actors: new Map(),
+        items: new Map()
+    };
 
-    // Step 1 & 2: Export Actors and Items, creating UUID maps
+    // --- PASS 1: EXPORT ALL DOCUMENTS AND BUILD THE UUID MAP ---
+    // This pass populates the compendiums and maps old UUIDs to new compendium UUIDs.
+
     for (const actor of exportData.actors) {
-      const exported = await this._exportDocument(actor, compendiums.actors);
-      uuidMap.actors.set(actor.id, exported.uuid);
+      const newDoc = await this._exportDocument(actor, compendiums.actors, compendiumFolders.actors);
+      uuidMap.set(actor.uuid, newDoc.uuid);
     }
     for (const item of exportData.items) {
-      const exported = await this._exportDocument(item, compendiums.items);
-      uuidMap.items.set(item.id, exported.uuid);
+      const newDoc = await this._exportDocument(item, compendiums.items, compendiumFolders.items);
+      uuidMap.set(item.uuid, newDoc.uuid);
     }
-
-    // Step 3: Export journals with placeholder data to establish UUIDs
     for (const journal of exportData.journals) {
-      const exported = await this._exportDocument(journal, compendiums.journals, { placeholder: true });
-      uuidMap.journals.set(journal.id, exported.uuid);
+      const newDoc = await this._exportDocument(journal, compendiums.journals, compendiumFolders.journals);
+      uuidMap.set(journal.uuid, newDoc.uuid);
     }
 
-    // Step 4: Update journals in the compendium with the now-complete UUID maps
-    await this._updateJournalReferences(exportData.journals, compendiums.journals, uuidMap);
-
-    return uuidMap;
-  }
-
-  static async _exportDocument(document, targetPack, { placeholder = false } = {}) {
-    const { FLAG_SCOPE, FLAG_DATA } = this.CONSTANTS;
-    const exportData = document.toObject();
-
-    // Use existing ID to allow for overwriting updates
-    exportData._id = document.id;
-
-    foundry.utils.setProperty(exportData, `flags.${FLAG_SCOPE}.originalId`, document.id);
-    foundry.utils.setProperty(exportData, `flags.${FLAG_SCOPE}.exportedAt`, Date.now());
-    
-    // For journals, use placeholder data initially to break dependency cycles
-    if (placeholder) {
-      foundry.utils.setProperty(exportData, `flags.${FLAG_SCOPE}.${FLAG_DATA}`, {});
-    }
-
-    const existing = await targetPack.getDocument(document.id);
-    if (existing) {
-      await existing.update(exportData);
-      return existing;
-    }
-    return await targetPack.importDocument(document);
-  }
-
-  static async _updateJournalReferences(journals, journalPack, uuidMap) {
-    const { FLAG_SCOPE, FLAG_DATA } = this.CONSTANTS;
+    // --- PASS 2: UPDATE THE EXPORTED JOURNALS WITH NEW LINKS ---
+    // Now that we have the complete uuidMap, we can update the journals in the compendium.
     const updates = [];
-    const sourcePack = journalPack.collection; // e.g., "world.my-campaign-cc-journals"
+    for (const journal of exportData.journals) {
+      const newJournalUuid = uuidMap.get(journal.uuid);
+      if (!newJournalUuid) continue;
 
-    for (const journal of journals) {
-      // 1. Convert the structured data in flags
-      const originalFlagData = journal.getFlag(FLAG_SCOPE, FLAG_DATA) || {};
-      const convertedFlagData = this._convertReferencesToUUIDs(originalFlagData, uuidMap);
+      // The document in the compendium has a different ID, but we can find it via its UUID.
+      const newJournal = await fromUuid(newJournalUuid);
+      if (!newJournal) continue;
 
-      // 2. Convert the visible @UUID links in the journal's page content
-      const originalPages = journal.toObject().pages;
-      const convertedPages = this._convertJournalPages(originalPages, uuidMap);
-
-      updates.push({
-        _id: journal.id,
-        // The pages and flag data are now correctly converted to compendium UUIDs
-        pages: convertedPages,
-        [`flags.${FLAG_SCOPE}.${FLAG_DATA}`]: convertedFlagData,
-        // THIS IS THE NEW LINE: Make the document self-aware of its home
-        [`flags.${FLAG_SCOPE}.sourcePack`]: sourcePack
-      });
+      updates.push(this._prepareJournalUpdate(newJournal, uuidMap));
     }
 
     if (updates.length > 0) {
-      // The rest of this function (the try/catch block for updateDocuments) remains the same...
-      await JournalEntry.updateDocuments(updates, { pack: journalPack.collection, diff: false, recursive: false });
+      await JournalEntry.updateDocuments(updates, { pack: compendiums.journals.collection });
     }
   }
 
-  static _convertReferencesToUUIDs(data, uuidMap) {
-    const converted = foundry.utils.deepClone(data);
-    const getUuid = (id, type) => uuidMap[type]?.get(id) || null;
+  /**
+   * Creates a data object for updating a journal in the compendium with relinked UUIDs.
+   * @param {JournalEntry} journal - The journal *in the compendium* to be updated.
+   * @param {Map<string, string>} uuidMap - The map of old UUIDs to new compendium UUIDs.
+   * @returns {object} The data object for the update operation.
+   */
+  static _prepareJournalUpdate(journal, uuidMap) {
+    const updateData = { _id: journal.id };
 
-    // Convert single references
-    if (converted.linkedActor) converted.linkedActor = getUuid(converted.linkedActor, 'actors');
-    if (converted.linkedLocation) converted.linkedLocation = getUuid(converted.linkedLocation, 'journals');
-    
-    // Convert array references
-    const journalArrayFields = ['linkedNPCs', 'linkedShops', 'linkedLocations', 'associates'];
-    journalArrayFields.forEach(field => {
-      if (Array.isArray(converted[field])) {
-        converted[field] = converted[field].map(id => getUuid(id, 'journals')).filter(Boolean);
-      }
-    });
+    // 1. Relink the `flags.campaign-codex.data` object
+    const oldCodexData = journal.getFlag(this.CONSTANTS.FLAG_SCOPE, this.CONSTANTS.FLAG_DATA) || {};
+    const newCodexData = foundry.utils.deepClone(oldCodexData);
 
-    // Convert inventory
-    if (Array.isArray(converted.inventory)) {
-      converted.inventory = converted.inventory.map(item => {
-        const uuid = getUuid(item.itemId, 'items');
-        if (uuid) item.itemId = uuid;
-        return item;
-      }).filter(item => item.itemId);
+    const relink = (uuid) => uuidMap.get(uuid) || uuid;
+
+    // Relink single UUID fields
+    const singleLinkFields = ["linkedActor", "linkedLocation", "parentRegion"];
+    for (const field of singleLinkFields) {
+        if (newCodexData[field]) newCodexData[field] = relink(newCodexData[field]);
     }
-    
-    return converted;
-  }
-  
-  // ===========================================
-  // IMPORT PROCESS
-  // ===========================================
-  
-  static async _performImport(compendiumSet, masterRef, strategy) {
-    const results = { actors: { imported: 0, skipped: 0, errors: 0 }, items: { imported: 0, skipped: 0, errors: 0 }, journals: { imported: 0, skipped: 0, errors: 0 } };
-    const worldIdMap = { actors: new Map(), items: new Map(), journals: new Map() };
 
-    // Import documents, populating the worldIdMap
-    for (const type of ["actors", "items", "journals"]) {
-        for (const ref of masterRef[type]) {
-            try {
-                const result = await this._importDocument(ref, compendiumSet, worldIdMap, strategy);
-                if (result.id) {
-                    worldIdMap[type].set(ref.compendiumUUID, result.id);
-                    results[type][result.imported ? 'imported' : 'skipped']++;
-                }
-            } catch (error) {
-                console.error(`Failed to import ${type} ${ref.name}:`, error);
-                results[type].errors++;
-            }
+    // Relink array UUID fields
+    const multiLinkFields = ["linkedNPCs", "linkedShops", "linkedLocations", "associates"];
+    for (const field of multiLinkFields) {
+        if (Array.isArray(newCodexData[field])) {
+            newCodexData[field] = newCodexData[field].map(relink);
         }
     }
 
-    // Second pass for journals to relink everything now that worldIdMap is complete
-    console.log("Campaign Codex | Relinking imported journals...");
-    for (const ref of masterRef.journals) {
-        const worldDoc = game.journal.find(j => j.getFlag(this.CONSTANTS.FLAG_SCOPE, "originalId") === ref.originalId);
-        if (!worldDoc) continue;
-
-        const compendiumDoc = await fromUuid(ref.compendiumUUID);
-        if (!compendiumDoc) continue;
-
-        const compendiumData = compendiumDoc.getFlag(this.CONSTANTS.FLAG_SCOPE, this.CONSTANTS.FLAG_DATA) || {};
-        const convertedData = this._convertUUIDsToWorldIds(compendiumData, worldIdMap);
-
-        await worldDoc.setFlag(this.CONSTANTS.FLAG_SCOPE, this.CONSTANTS.FLAG_DATA, convertedData);
+    // Relink inventory
+    if (Array.isArray(newCodexData.inventory)) {
+        newCodexData.inventory.forEach(item => {
+            if (item.itemUuid) item.itemUuid = relink(item.itemUuid);
+        });
     }
-
-    return results;
-}
-
-  static async _importDocument(ref, compendiumSet, worldIdMap, strategy) {
-    const { FLAG_SCOPE, FLAG_DATA } = this.CONSTANTS;
-    const docType = ref.compendiumUUID.split('.')[2]; // Actor, Item, or JournalEntry
-    const collection = docType === "JournalEntry" ? "journal" : `${docType.toLowerCase()}s`;
     
-    const existing = game[collection].find(d => d.getFlag(FLAG_SCOPE, "originalId") === ref.originalId || d.name === ref.name);
-    
-    if (existing && strategy === 'merge') {
-        return { id: existing.id, imported: false };
-    }
+    foundry.utils.setProperty(updateData, `flags.${this.CONSTANTS.FLAG_SCOPE}.${this.CONSTANTS.FLAG_DATA}`, newCodexData);
 
-    const compendiumDoc = await fromUuid(ref.compendiumUUID);
-    if (!compendiumDoc) throw new Error(`${docType} not found in compendium: ${ref.compendiumUUID}`);
-
-    const importData = compendiumDoc.toObject();
-    delete importData._id;
-
-    // Clear data for journals; it will be relinked in the second pass
-    if (docType === "JournalEntry") {
-        foundry.utils.setProperty(importData, `flags.${FLAG_SCOPE}.${FLAG_DATA}`, {});
-    }
-
-    if (existing && strategy === 'overwrite') {
-        await existing.update(importData);
-        if (ref.type) await existing.setFlag("core", "sheetClass", this._getSheetClass(ref.type));
-        return { id: existing.id, imported: true }; // Considered an import/update
-    } else {
-        const created = await globalThis[docType].create(importData);
-        if (ref.type) await created.setFlag("core", "sheetClass", this._getSheetClass(ref.type));
-        return { id: created.id, imported: true };
-    }
-}
-  
-  static _convertUUIDsToWorldIds(data, worldIdMap) {
-    const converted = foundry.utils.deepClone(data);
-    const getWorldId = (uuid, type) => {
-        if (typeof uuid !== 'string' || !uuid.startsWith('Compendium.')) return uuid; // Already a world ID or invalid
-        return worldIdMap[type]?.get(uuid) || null;
-    };
-
-    // Convert single references
-    if (converted.linkedActor) converted.linkedActor = getWorldId(converted.linkedActor, 'actors');
-    if (converted.linkedLocation) converted.linkedLocation = getWorldId(converted.linkedLocation, 'journals');
-
-    // Convert array references
-    const journalArrayFields = ['linkedNPCs', 'linkedShops', 'linkedLocations', 'associates'];
-    journalArrayFields.forEach(field => {
-        if (Array.isArray(converted[field])) {
-            converted[field] = converted[field].map(uuid => getWorldId(uuid, 'journals')).filter(Boolean);
+    // 2. Relink @UUID links in all journal pages' text content
+    const newPages = journal.pages.map(page => {
+        const pageData = page.toObject();
+        if (pageData.text?.content) {
+            pageData.text.content = pageData.text.content.replace(/@UUID\[([^\]]+)\]/g, (match, oldUuid) => {
+                const newUuid = uuidMap.get(oldUuid);
+                return newUuid ? `@UUID[${newUuid}]` : match;
+            });
         }
+        return pageData;
     });
+    updateData.pages = newPages;
 
-    // Convert inventory
-    if (Array.isArray(converted.inventory)) {
-        converted.inventory = converted.inventory.map(item => {
-            const worldId = getWorldId(item.itemId, 'items');
-            if (worldId) item.itemId = worldId;
-            return item;
-        }).filter(item => item.itemId);
+    return updateData;
+  }
+
+  /**
+   * Exports a single document to a target compendium, creating folders as needed.
+   * @param {Document} doc - The document to export.
+   * @param {CompendiumCollection} targetPack - The compendium to export to.
+   * @param {Map<string, string>} folderMap - A map to track created folders in the pack.
+   * @returns {Promise<Document>} The newly created document in the compendium.
+   */
+  static async _exportDocument(doc, targetPack, folderMap) {
+    const exportData = doc.toObject();
+    delete exportData._id;
+
+    foundry.utils.setProperty(exportData, `flags.${this.CONSTANTS.FLAG_SCOPE}.originalUuid`, doc.uuid);
+    
+    // **NEW FOLDER LOGIC**
+    if (doc.folder) {
+        const folderName = doc.folder.name;
+        let targetFolderId = folderMap.get(folderName);
+
+        if (!targetFolderId) {
+            // Folder doesn't exist in the compendium yet, so create it.
+            console.log(`Campaign Codex | Creating folder "${folderName}" in compendium "${targetPack.metadata.label}"`);
+            const newFolder = await Folder.create({
+                name: folderName,
+                type: doc.documentName,
+                sorting: doc.folder.sorting,
+                color: doc.folder.color
+            }, { pack: targetPack.collection });
+
+            targetFolderId = newFolder.id;
+            folderMap.set(folderName, targetFolderId);
+        }
+        
+        // Assign the document to the folder
+        exportData.folder = targetFolderId;
     }
     
-    return converted;
+    return await targetPack.importDocument(doc.clone(exportData, {"keepId": false}));
   }
 
   // ===========================================
-  // MASTER REFERENCE DOCUMENT
-  // ===========================================
-
-  static async _createMasterReference(exportData, compendiums, uuidMap, config) {
-    const { FLAG_SCOPE, FLAG_IS_MASTER, FLAG_MASTER_DATA, MASTER_REF_NAME } = this.CONSTANTS;
-
-    const masterRefData = {
-      // ... (metadata like exportedAt, worldId, etc.)
-      actors: exportData.actors.map(d => ({ originalId: d.id, name: d.name, compendiumUUID: uuidMap.actors.get(d.id) })),
-      items: exportData.items.map(d => ({ originalId: d.id, name: d.name, compendiumUUID: uuidMap.items.get(d.id) })),
-      journals: exportData.journals.map(d => ({ originalId: d.id, name: d.name, type: d.getFlag(FLAG_SCOPE, "type"), compendiumUUID: uuidMap.journals.get(d.id) })),
-    };
-    
-    const content = `<h1>Campaign Codex Export</h1><p><strong>⚠️ DO NOT DELETE.</strong> This contains data required for import.</p>`;
-    
-    const refDocData = {
-      name: MASTER_REF_NAME,
-      pages: [{ name: "Reference Data", type: "text", text: { content, format: 1 } }],
-      flags: { [FLAG_SCOPE]: { [FLAG_IS_MASTER]: true, [FLAG_MASTER_DATA]: masterRefData } }
-    };
-
-    // Check for existing master reference to update it
-    const packIndex = await compendiums.journals.getIndex();
-    const existingRef = packIndex.find(e => e.name === MASTER_REF_NAME);
-    if (existingRef) {
-        refDocData._id = existingRef._id;
-        const doc = await compendiums.journals.getDocument(existingRef._id);
-        return await doc.update(refDocData);
-    }
-
-    return await JournalEntry.create(refDocData, { pack: compendiums.journals.collection });
-  }
-
-  static async _loadMasterReference(journalPack) {
-    const { FLAG_SCOPE, FLAG_IS_MASTER, FLAG_MASTER_DATA, MASTER_REF_NAME } = this.CONSTANTS;
-    const index = await journalPack.getIndex({ fields: [`flags.${FLAG_SCOPE}`] });
-    const refEntry = index.find(e => e.name === MASTER_REF_NAME || foundry.utils.getProperty(e, `flags.${FLAG_SCOPE}.${FLAG_IS_MASTER}`));
-    
-    if (refEntry) {
-        const doc = await journalPack.getDocument(refEntry._id);
-        return doc?.getFlag(FLAG_SCOPE, FLAG_MASTER_DATA) || null;
-    }
-    return null;
-  }
-
-// ===========================================
-  // UTILITY & UI METHODS
+  // UI & UTILITY METHODS
   // ===========================================
 
   /**
    * Prompts the user to enter a base name for the new compendium set.
-   * @returns {Promise<Object|null>} An object with the baseName or null if canceled.
-   * @private
+   * @returns {Promise<Object|null>}
    */
   static async _getExportConfig() {
     return new Promise((resolve) => {
@@ -378,7 +312,7 @@ export class SimpleCampaignCodexExporter {
               <label>Compendium Set Name:</label>
               <input type="text" name="baseName" value="My Campaign" style="width: 100%;" />
               <p style="font-size: 11px; color: #666; margin: 4px 0;">
-                Creates: <strong>[Name] - CC Journals/Actors/Items</strong>
+                This will create a set of compendiums, e.g., <strong>[Name] - CC Journals</strong>.
               </p>
             </div>
           </form>
@@ -404,36 +338,31 @@ export class SimpleCampaignCodexExporter {
   }
 
   /**
-   * Creates a set of three compendiums (Journals, Actors, Items) for the export.
+   * Creates a set of three compendiums for the export inside a main folder.
    * @param {string} baseName - The base name for the compendium set.
-   * @returns {Promise<Object|null>} An object containing the three compendium packs, or null on failure.
-   * @private
+   * @returns {Promise<Object|null>}
    */
   static async _createCompendiumSet(baseName) {
     try {
-      const compendiums = {
-        journals: await this._createCompendium(`${baseName} - CC Journals`, "JournalEntry"),
-        actors: await this._createCompendium(`${baseName} - CC Actors`, "Actor"),
-        items: await this._createCompendium(`${baseName} - CC Items`, "Item")
-      };
-
-      // Tag all compendiums as a Campaign Codex set for easy identification later
-      const setId = foundry.utils.randomID();
-      const timestamp = Date.now();
-
-      for (const [type, compendium] of Object.entries(compendiums)) {
-        await compendium.configure({
-          flags: {
-            [this.CONSTANTS.FLAG_SCOPE]: {
-              isExportSet: true,
-              setId: setId,
-              setName: baseName,
-              type: type, // 'journals', 'actors', or 'items'
-              exportedAt: timestamp
-            }
-          }
-        });
+      // **NEW** Create the parent folder in the Compendium sidebar.
+      const FOLDER_NAME = "Campaign Codex Exports";
+      let compendiumFolder = game.folders.find(f => f.name === FOLDER_NAME && f.type === "Compendium");
+      if (!compendiumFolder) {
+          console.log(`Campaign Codex | Creating compendium folder "${FOLDER_NAME}"`);
+          compendiumFolder = await Folder.create({
+              name: FOLDER_NAME,
+              type: "Compendium",
+              color: "#198556", // A nice green color
+              sorting: "a"
+          });
       }
+
+      // Create the compendiums inside that folder.
+      const compendiums = {
+        journals: await this._createCompendium(`${baseName} - CC Journals`, "JournalEntry", compendiumFolder.id),
+        actors: await this._createCompendium(`${baseName} - CC Actors`, "Actor", compendiumFolder.id),
+        items: await this._createCompendium(`${baseName} - CC Items`, "Item", compendiumFolder.id)
+      };
       return compendiums;
     } catch (error) {
       ui.notifications.error("Failed to create compendium set!");
@@ -443,143 +372,49 @@ export class SimpleCampaignCodexExporter {
   }
 
   /**
-   * Creates a single compendium pack if it doesn't already exist.
+   * Creates a single compendium pack, overwriting if it already exists.
    * @param {string} name - The user-facing label for the compendium.
-   * @param {string} documentType - The type of document (e.g., 'Actor', 'Item').
-   * @returns {Promise<CompendiumCollection>} The existing or newly created compendium pack.
-   * @private
+   * @param {string} documentType - The type of document.
+   * @param {string} folderId - The ID of the parent folder in the compendium sidebar.
+   * @returns {Promise<CompendiumCollection>}
    */
-  static async _createCompendium(name, documentType) {
+  static async _createCompendium(name, documentType, folderId) {
     const slug = name.slugify({strict: true});
     const packId = `world.${slug}`;
     const existing = game.packs.get(packId);
 
     if (existing) {
-      ui.notifications.info(`Using existing compendium: ${name}`);
-      return existing;
+      const confirmed = await Dialog.confirm({
+        title: "Overwrite Compendium?",
+        content: `<p>A compendium named "<strong>${name}</strong>" already exists. Do you want to delete and recreate it? This cannot be undone.</p>`,
+        yes: () => true,
+        no: () => false,
+        defaultYes: false
+      });
+      if (!confirmed) {
+        throw new Error(`User cancelled overwrite of compendium: ${name}`);
+      }
+      await existing.deleteCompendium();
+      ui.notifications.info(`Recreating compendium: ${name}`);
+    } else {
+      ui.notifications.info(`Creating new compendium: ${name}`);
     }
-
-    ui.notifications.info(`Creating new compendium: ${name}`);
+    
     return await CompendiumCollection.createCompendium({
       type: documentType,
       label: name,
       name: slug,
-      pack: packId, // Required in newer Foundry versions
-      system: game.system.id
-    });
-  }
-
-  /**
-   * Prompts the user to select an existing Campaign Codex compendium set to import from.
-   * @returns {Promise<Object|null>} The selected compendium set or null if canceled.
-   * @private
-   */
-  static async _selectCompendiumSet() {
-    const { FLAG_SCOPE } = this.CONSTANTS;
-    const sets = new Map();
-
-    // Find compendium sets by flags first
-    for (const pack of game.packs) {
-      const ccFlags = pack.metadata?.flags?.[FLAG_SCOPE];
-      if (!ccFlags?.isExportSet) continue;
-
-      const { setId, setName, type, exportedAt } = ccFlags;
-      if (!setId || !setName || !type) continue;
-
-      if (!sets.has(setId)) {
-        sets.set(setId, { id: setId, name: setName, exportedAt, compendiums: {} });
-      }
-      sets.get(setId).compendiums[type] = pack;
-    }
-
-    if (sets.size === 0) {
-      ui.notifications.warn("No Campaign Codex compendium sets found!");
-      return null;
-    }
-    
-    // Filter for complete sets
-    const completeSets = Array.from(sets.values()).filter(s => s.compendiums.journals && s.compendiums.actors && s.compendiums.items);
-
-    if (completeSets.length === 0) {
-        ui.notifications.warn("No complete Campaign Codex sets found. Ensure a set has Journals, Actors, and Items packs.");
-        return null;
-    }
-
-    return new Promise((resolve) => {
-      const setOptions = completeSets.map(set => {
-        const date = set.exportedAt ? new Date(set.exportedAt).toLocaleDateString() : "Unknown date";
-        return `<option value="${set.id}">${set.name} (${date})</option>`;
-      }).join('');
-
-      new Dialog({
-        title: "Import Campaign Codex",
-        content: `
-          <form class="flexcol">
-            <div class="form-group">
-              <label>Select Compendium Set:</label>
-              <select name="setId" style="width: 100%;">${setOptions}</select>
-            </div>
-          </form>
-        `,
-        buttons: {
-          import: {
-            icon: '<i class="fas fa-upload"></i>',
-            label: "Import",
-            callback: (html) => {
-              const setId = html.find('[name="setId"]').val();
-              const selectedSet = completeSets.find(s => s.id === setId);
-              resolve(selectedSet?.compendiums || null);
-            }
-          },
-          cancel: {
-            icon: '<i class="fas fa-times"></i>',
-            label: "Cancel",
-            callback: () => resolve(null)
-          }
-        },
-        default: "import"
-      }).render(true);
-    });
-  }
-  
-  /**
-   * Prompts the user to select an import strategy for handling conflicts.
-   * @returns {Promise<string|null>} 'merge' or 'overwrite', or null if canceled.
-   * @private
-   */
-  static async _getImportStrategy() {
-    return new Promise((resolve) => {
-      new Dialog({
-        title: "Import Strategy",
-        content: `
-          <form class="flexcol">
-            <div class="form-group">
-              <label>How should conflicts with existing documents be handled?</label>
-              <select name="strategy" style="width: 100%;">
-                <option value="merge">Merge (Skip existing documents by name)</option>
-                <option value="overwrite">Overwrite (Replace existing documents by name)</option>
-              </select>
-              <p style="font-size: 11px; color: #666; margin: 4px 0;">
-                "Name" refers to the Actor, Item, or Journal name. It is recommended to use "Merge" unless you are intentionally updating content.
-              </p>
-            </div>
-          </form>
-        `,
-        buttons: {
-          proceed: { icon: '<i class="fas fa-check"></i>', label: "Proceed", callback: (html) => resolve(html.find('[name="strategy"]').val()) },
-          cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel", callback: () => resolve(null) }
-        },
-        default: "proceed"
-      }).render(true);
+      pack: packId,
+      system: game.system.id,
+      folder: folderId
     });
   }
 
   /**
    * Prompts the user to confirm the export details.
-   * @param {Object} exportData - The collected data to be exported.
+   * @param {object} exportData - The collected data to be exported.
    * @param {string} baseName - The name of the compendium set.
-   * @returns {Promise<boolean>} True if confirmed, false if canceled.
-   * @private
+   * @returns {Promise<boolean>}
    */
   static async _confirmExport(exportData, baseName) {
     return new Promise((resolve) => {
@@ -587,13 +422,13 @@ export class SimpleCampaignCodexExporter {
         title: "Confirm Export",
         content: `
           <div class="flexcol">
-            <p>Ready to export to "<strong>${baseName}</strong>":</p>
-            <ul>
-              <li><strong>${exportData.journals.length}</strong> Campaign Codex journals</li>
-              <li><strong>${exportData.actors.length}</strong> linked actors</li>
-              <li><strong>${exportData.items.length}</strong> linked items</li>
+            <p>Ready to export the following to the "<strong>${baseName}</strong>" compendium set:</p>
+            <ul style="margin: 0.5rem 0;">
+              <li><strong>${exportData.journals.size}</strong> Campaign Codex journals</li>
+              <li><strong>${exportData.actors.size}</strong> linked actors</li>
+              <li><strong>${exportData.items.size}</strong> linked items</li>
             </ul>
-            <p><em>All relationships will be preserved. Existing compendiums will be updated.</em></p>
+            <p><em>All relationships and folders will be preserved.</em></p>
           </div>
         `,
         buttons: {
@@ -603,82 +438,5 @@ export class SimpleCampaignCodexExporter {
         default: "confirm"
       }).render(true);
     });
-  }
-
-  /**
-   * Gets the correct sheet class string for a given Campaign Codex document type.
-   * @param {string} type - The codex type (e.g., 'npc', 'location').
-   * @returns {string|null} The sheet class string or null.
-   * @private
-   */
-  static _getSheetClass(type) {
-    const sheetClasses = {
-      "location": `${this.CONSTANTS.FLAG_SCOPE}.LocationSheet`,
-      "shop": `${this.CONSTANTS.FLAG_SCOPE}.ShopSheet`,
-      "npc": `${this.CONSTANTS.FLAG_SCOPE}.NPCSheet`,
-      "region": `${this.CONSTANTS.FLAG_SCOPE}.RegionSheet`
-    };
-    return sheetClasses[type] || null;
-  }
-
-  /**
-   * Displays a notification summarizing the results of the import.
-   * @param {Object} results - The results object from the import process.
-   * @private
-   */
-  static _reportImportResults(results) {
-    const { journals, actors, items } = results;
-    const totalErrors = journals.errors + actors.errors + items.errors;
-    
-    let message = `Import complete!\n`;
-    message += `• Journals: ${journals.imported} imported, ${journals.skipped} skipped\n`;
-    message += `• Actors: ${actors.imported} imported, ${actors.skipped} skipped\n`;
-    message += `• Items: ${items.imported} imported, ${items.skipped} skipped`;
-    
-    if (totalErrors === 0) {
-      ui.notifications.info(message);
-    } else {
-      ui.notifications.warn(`${message}\n${totalErrors} errors occurred. Please check the console (F12) for details.`);
-    }
-  }
-
-  /**
-   * If enabled, moves imported documents into organized folders by type.
-   * @private
-   */
-  static async _organizeImportedDocuments() {
-    try {
-      const folderDefs = {
-        "Campaign Codex - NPCs": { type: "npc", color: "#fd7e14" },
-        "Campaign Codex - Locations": { type: "location", color: "#28a745" },
-        "Campaign Codex - Shops": { type: "shop", color: "#6f42c1" },
-        "Campaign Codex - Regions": { type: "region", color: "#20c997" }
-      };
-
-      for (const [folderName, def] of Object.entries(folderDefs)) {
-        let folder = game.folders.find(f => f.name === folderName && f.type === "JournalEntry");
-        
-        if (!folder) {
-          folder = await Folder.create({
-            name: folderName,
-            type: "JournalEntry",
-            color: def.color,
-            flags: { [this.CONSTANTS.FLAG_SCOPE]: { autoOrganize: true } }
-          });
-        }
-        
-        const docsToMove = game.journal.filter(j => 
-          j.getFlag(this.CONSTANTS.FLAG_SCOPE, "type") === def.type && j.folder?.id !== folder.id
-        );
-
-        if (docsToMove.length > 0) {
-            const updates = docsToMove.map(doc => ({ _id: doc.id, folder: folder.id }));
-            await JournalEntry.updateDocuments(updates);
-        }
-      }
-      console.log("Campaign Codex | Organized imported documents into folders.");
-    } catch (error) {
-      console.warn("Campaign Codex | Failed to organize imported documents:", error);
-    }
   }
 }

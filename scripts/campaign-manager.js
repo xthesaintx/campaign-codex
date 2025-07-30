@@ -70,7 +70,7 @@ async findOrCreateNPCJournalForActor(actor) {
 }
 
 
-  async createShopJournal(name = "New Shop") {
+  async createShopJournal(name = "New Entry") {
     const creationKey = `shop-${name}`;
     if (this._creationQueue.has(creationKey)) return;
     this._creationQueue.add(creationKey);
@@ -97,7 +97,7 @@ async findOrCreateNPCJournalForActor(actor) {
         pages: [{
           name: "Overview",
           type: "text",
-          text: { content: `<h1>${name}</h1><p>Shop overview...</p>` }
+          text: { content: `<h1>${name}</h1><p>Entry overview...</p>` }
         }]
       };
 

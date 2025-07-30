@@ -41,7 +41,7 @@ export class NPCSheet extends CampaignCodexBaseSheet {
         value: data.allLocations.length,
         color: '#28a745'
       } },
-      { key: 'shops', label: 'Shops', icon: 'fas fa-store', active: this._currentTab === 'shops' ,
+      { key: 'shops', label: 'Entries', icon: 'fas fa-book-open', active: this._currentTab === 'shops' ,
       statistic: {
         value: data.linkedShops.length,
         color: '#6f42c1'
@@ -57,7 +57,7 @@ export class NPCSheet extends CampaignCodexBaseSheet {
     // Statistics - use all discovered locations
     data.statistics = [
       { icon: 'fas fa-map-marker-alt', value: data.allLocations.length, label: 'LOCATIONS', color: '#28a745' },
-      { icon: 'fas fa-store', value: data.linkedShops.length, label: 'SHOPS', color: '#6f42c1' },
+      { icon: 'fas fa-book-open', value: data.linkedShops.length, label: 'ENTRIES', color: '#6f42c1' },
       { icon: 'fas fa-users', value: data.associates.length, label: 'ASSOCIATES', color: '#fd7e14' }
     ];
     
@@ -178,7 +178,7 @@ export class NPCSheet extends CampaignCodexBaseSheet {
       content += `
         <div class="location-section">
           <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
-            <i class="fas fa-store" style="color: var(--cc-accent); margin-right: 8px;"></i>
+            <i class="fas fa-book-open" style="color: var(--cc-accent); margin-right: 8px;"></i>
             Shop Locations (${shopLocations.length})
           </h3>
           ${TemplateComponents.infoBanner('Locations where this NPC works through shop associations.')}
@@ -196,8 +196,8 @@ export class NPCSheet extends CampaignCodexBaseSheet {
 
   _generateShopsTab(data) {
     return `
-      ${TemplateComponents.contentHeader('fas fa-store', 'Associated Shops')}
-      ${TemplateComponents.dropZone('shop', 'fas fa-store', 'Add Shops', 'Drag shop journals here to associate this NPC with them')}
+      ${TemplateComponents.contentHeader('fas fa-book-open', 'Associated Entries')}
+      ${TemplateComponents.dropZone('shop', 'fas fa-book-open', 'Add Entries', 'Drag entry journals here to associate this NPC with them')}
       ${TemplateComponents.entityGrid(data.linkedShops, 'shop')}
     `;
   }

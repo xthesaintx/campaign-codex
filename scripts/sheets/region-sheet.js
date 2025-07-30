@@ -42,7 +42,7 @@ export class RegionSheet extends CampaignCodexBaseSheet {
         value: Array.isArray(data.allNPCs) ? data.allNPCs.length : 0,
         color: '#fd7e14'
       }},
-      { key: 'shops', label: 'Shops', icon: 'fas fa-store', active: this._currentTab === 'shops' ,
+      { key: 'shops', label: 'Entries', icon: 'fas fa-book-open', active: this._currentTab === 'shops' ,
       statistic: {
         value: Array.isArray(data.allShops) ? data.allShops.length : 0,
         color: '#6f42c1'
@@ -54,7 +54,7 @@ export class RegionSheet extends CampaignCodexBaseSheet {
     data.statistics = [
       { icon: 'fas fa-map-marker-alt', value: data.linkedLocations.length, label: 'LOCATIONS', color: '#28a745' },
       { icon: 'fas fa-users', value: data.allNPCs.length, label: 'NPCS', color: '#fd7e14' },
-      { icon: 'fas fa-store', value: data.allShops.length, label: 'SHOPS', color: '#6f42c1' }
+      { icon: 'fa-book-open', value: data.allShops.length, label: 'ENTRIES', color: '#6f42c1' }
     ];
     
     // Quick links
@@ -119,7 +119,7 @@ export class RegionSheet extends CampaignCodexBaseSheet {
 
     return `
       ${TemplateComponents.contentHeader('fas fa-users', 'NPCs in this Region', refreshBtn)}
-      ${TemplateComponents.infoBanner('NPCs are automatically populated from all locations and shops in this region.')}
+      ${TemplateComponents.infoBanner('NPCs are automatically populated from all locations and entries in this region.')}
       ${this._generateNPCsBySource(data)}
     `;
   }
@@ -149,7 +149,7 @@ export class RegionSheet extends CampaignCodexBaseSheet {
       content += `
         <div class="npc-section">
           <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
-            <i class="fas fa-store" style="color: var(--cc-accent); margin-right: 8px;"></i>
+            <i class="fa-book-open" style="color: var(--cc-accent); margin-right: 8px;"></i>
             Shop NPCs (${shopNPCs.length})
           </h3>
           ${TemplateComponents.entityGrid(shopNPCs, 'npc', true)}
@@ -174,8 +174,8 @@ export class RegionSheet extends CampaignCodexBaseSheet {
     `;
 
     return `
-      ${TemplateComponents.contentHeader('fas fa-store', 'Shops in this Region', refreshBtn)}
-      ${TemplateComponents.infoBanner('Shops are automatically populated from all locations in this region.')}
+      ${TemplateComponents.contentHeader('fas fa-book-open', 'Entries in this Region', refreshBtn)}
+      ${TemplateComponents.infoBanner('Entries are automatically populated from all locations in this region.')}
       ${TemplateComponents.entityGrid(data.allShops, 'shop')}
     `;
   }

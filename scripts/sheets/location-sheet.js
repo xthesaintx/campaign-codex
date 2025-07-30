@@ -35,14 +35,14 @@ export class LocationSheet extends CampaignCodexBaseSheet {
     data.tabs = [
       { key: 'info', label: 'Info', icon: 'fas fa-info-circle', active: this._currentTab === 'info' },
       { key: 'npcs', label: 'NPCs', icon: 'fas fa-users', active: this._currentTab === 'npcs', statistic: {value: data.allNPCs.length,color: '#fd7e14'} },
-      { key: 'shops', label: 'Shops', icon: 'fas fa-store', active: this._currentTab === 'shops', statistic: {value: data.linkedShops.length, color: '#6f42c1'} },
+      { key: 'shops', label: 'Entries', icon: 'fas fa-book-open', active: this._currentTab === 'shops', statistic: {value: data.linkedShops.length, color: '#6f42c1'} },
       { key: 'notes', label: 'Notes', icon: 'fas fa-sticky-note', active: this._currentTab === 'notes' }
     ];
     
     // Statistics - use total NPC count
     data.statistics = [
       { icon: 'fas fa-users', value: data.allNPCs.length, label: 'NPCS', color: '#fd7e14' },
-      { icon: 'fas fa-store', value: data.linkedShops.length, label: 'SHOPS', color: '#6f42c1' }
+      { icon: 'fas fa-book-open', value: data.linkedShops.length, label: 'ENTRIES', color: '#6f42c1' }
     ];
     
     // Quick links - use all NPCs
@@ -161,10 +161,10 @@ export class LocationSheet extends CampaignCodexBaseSheet {
       content += `
         <div class="npc-section">
           <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
-            <i class="fas fa-store" style="color: var(--cc-accent); margin-right: 8px;"></i>
+            <i class="fas fa-book-open" style="color: var(--cc-accent); margin-right: 8px;"></i>
             Shop NPCs (${data.shopNPCs.length})
           </h3>
-          ${TemplateComponents.infoBanner('NPCs automatically populated from shops at this location.')}
+          ${TemplateComponents.infoBanner('NPCs automatically populated from entries at this location.')}
           ${TemplateComponents.entityGrid(data.shopNPCs, 'npc', true)}
         </div>
       `;
@@ -180,8 +180,8 @@ export class LocationSheet extends CampaignCodexBaseSheet {
 
   _generateShopsTab(data) {
     return `
-      ${TemplateComponents.contentHeader('fas fa-store', 'Shops at this Location')}
-      ${TemplateComponents.dropZone('shop', 'fas fa-store', 'Add Shops', 'Drag shop journals here to add them to this location')}
+      ${TemplateComponents.contentHeader('fas fa-book-open', 'Entries at this Location')}
+      ${TemplateComponents.dropZone('shop', 'fas fa-book-open', 'Add Entries', 'Drag entry journals here to add them to this location')}
       ${TemplateComponents.entityGrid(data.linkedShops, 'shop')}
     `;
   }
@@ -196,7 +196,7 @@ export class LocationSheet extends CampaignCodexBaseSheet {
       const isShopNPC = npcCard.querySelector('.shop-tags');
       
       if (isShopNPC) {
-        ui.notifications.warn("Cannot remove shop NPCs directly. Remove them from their shops instead.");
+        ui.notifications.warn("Cannot remove shop NPCs directly. Remove them from their entries instead.");
         return;
       }
       

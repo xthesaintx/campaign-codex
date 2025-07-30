@@ -1,7 +1,7 @@
 {
     "id": "campaign-codex",
     "title": "campaign-codex",
-    "version": "0.94",
+    "version": "0.01",
     "esmodules": [
         "scripts/main.js"
     ],
@@ -9,10 +9,10 @@
         "minimum": "12",
         "verified": "12"
     },
-    "url": "https://github.com/xthesaintx/worldbuilder/",
-    "manifest": "https://raw.githubusercontent.com/xthesaintx/worldbuilder/main/module.json",
-    "download": "https://github.com/xthesaintx/worldbuilder/archive/refs/tags/094.zip",
-    "readme": "https://github.com/xthesaintx/worldbuilder/blob/main/README.md",
+    "url": "https://github.com/xthesaintx/campaign-codex/",
+    "manifest": "https://raw.githubusercontent.com/xthesaintx/campaign-codex/main/module.json",
+    "download": "https://github.com/xthesaintx/campaign-codex/archive/refs/tags/001.zip",
+    "readme": "https://github.com/xthesaintx/campaign-codex/blob/main/README.md",
     "authors": [
         {
             "name": "Stephen Garrett",
@@ -25,15 +25,15 @@
     ],
     "relationships": {
         "systems": [
-            {
-                "id": "dnd5e",
-                "type": "system",
-                "compatibility": {
-                    "minimum": "4.1.0",
-                    "verified": "4.4.3",
-                    "maximum": "5.9.999"
-                }
-            }
+            // {
+            //     "id": "dnd5e",
+            //     "type": "system",
+            //     "compatibility": {
+            //         "minimum": "4.1.0",
+            //         "verified": "4.4.3",
+            //         "maximum": "5.9.999"
+            //     }
+            // }
         ]
     }
 }

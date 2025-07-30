@@ -25,7 +25,7 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
     
     // Sheet configuration
     data.sheetType = "shop";
-    data.sheetTypeLabel = "Shop";
+    data.sheetTypeLabel = "Entry";
     data.customImage = this.document.getFlag("campaign-codex", "image") || "icons/svg/item-bag.svg";
     data.markup = shopData.markup || 1.0;
     
@@ -129,7 +129,7 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
       locationSection = `
         <div class="form-section">
           <h3><i class="fas fa-map-marker-alt"></i> Location</h3>
-          ${TemplateComponents.dropZone('location', 'fas fa-map-marker-alt', 'Set Location', 'Drag a location journal here to set where this shop is located')}
+          ${TemplateComponents.dropZone('location', 'fas fa-map-marker-alt', 'Set Location', 'Drag a location journal here to set where this entry is located')}
         </div>
       `;
     }
@@ -143,7 +143,7 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
 
   _generateInventoryTab(data) {
     return `
-      ${TemplateComponents.contentHeader('fas fa-boxes', 'Shop Inventory')}
+      ${TemplateComponents.contentHeader('fas fa-boxes', 'Inventory')}
       ${TemplateComponents.markupControl(data.markup)}
       ${TemplateComponents.dropZone('item', 'fas fa-plus-circle', 'Add Items', 'Drag items from the items directory to add them to inventory')}
       ${TemplateComponents.inventoryTable(data.inventory)}
@@ -152,8 +152,8 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
 
   _generateNPCsTab(data) {
     return `
-      ${TemplateComponents.contentHeader('fas fa-users', 'Shop NPCs')}
-      ${TemplateComponents.dropZone('npc', 'fas fa-user-plus', 'Add NPCs', 'Drag NPCs or actors here to associate them with this shop')}
+      ${TemplateComponents.contentHeader('fas fa-users', 'Entry NPCs')}
+      ${TemplateComponents.dropZone('npc', 'fas fa-user-plus', 'Add NPCs', 'Drag NPCs or actors here to associate them with this entry')}
       ${TemplateComponents.entityGrid(data.linkedNPCs, 'npc', true)}
     `;
   }
@@ -209,13 +209,13 @@ data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData
 
 async _handleItemDrop(data, event) {
   if (!data.uuid) {
-    ui.notifications.warn("Could not find item to add to shop");
+    ui.notifications.warn("Could not find item to add to entry");
     return;
   }
 
   const item = await fromUuid(data.uuid);
   if (!item) {
-    ui.notifications.warn("Could not find item to add to shop");
+    ui.notifications.warn("Could not find item to add to entry");
     return;
   }
 
@@ -230,7 +230,7 @@ async _handleItemDrop(data, event) {
 
   await game.campaignCodex.addItemToShop(this.document, item, 1);
   this.render(false);
-  ui.notifications.info(`Added "${item.name}" to shop inventory`);
+  ui.notifications.info(`Added "${item.name}" to entry inventory`);
 }
 
 

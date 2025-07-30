@@ -63,6 +63,9 @@ Hooks.once('ready', async function() {
   game.campaignCodex = new CampaignManager();
   game.campaignCodexCleanup = new CleanUp();
 
+  // Make the exporter globally available for button clicks
+  window.SimpleCampaignCodexExporter = SimpleCampaignCodexExporter;
+
   // Create organization folders if setting is enabled
   if (game.settings.get("campaign-codex", "useOrganizedFolders")) {
     await ensureCampaignCodexFolders();
@@ -73,7 +76,7 @@ Hooks.once('ready', async function() {
 async function ensureCampaignCodexFolders() {
   const folderNames = {
     "Campaign Codex - Locations": "location",
-    "Campaign Codex - Shops": "shop", 
+    "Campaign Codex - Entries": "shop", 
     "Campaign Codex - NPCs": "npc",
     "Campaign Codex - Regions": "region"
   };
@@ -114,7 +117,7 @@ function getCampaignCodexFolder(type) {
   
   const folderNames = {
     location: "Campaign Codex - Locations",
-    shop: "Campaign Codex - Shops",
+    shop: "Campaign Codex - Entries",
     npc: "Campaign Codex - NPCs", 
     region: "Campaign Codex - Regions"
   };
@@ -133,7 +136,7 @@ Hooks.on('getActorDirectoryEntryContext', (html, options) => {
       const actor = fromUuidSync(actorUuid);
       return actor && actor.type === "npc" && !game.journal.find(j => {
         const npcData = j.getFlag("campaign-codex", "data");
-        return npcData && npcData.linkedActor === actor.id;
+        return npcData && npcData.linkedActor === actor.uuid;
       });
     },
     callback: async li => {
@@ -178,35 +181,22 @@ Hooks.on('renderJournalDirectory', (app, html, data) => {
   
   // Create button container
   const buttonContainer = $(`
-    <div class="campaign-codex-export-buttons" style="margin: 8px">
+    <div class="campaign-codex-export-buttons" style="margin: 8px; display: flex; gap: 4px;">
       ${hasCampaignCodex ? `
-        <button class="export-campaign-codex-btn" type="button" title="Export all Campaign Codex content to compendium" style="flex: 1; padding: 4px 8px; font-size: 11px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; height: auto">
+        <button onclick="SimpleCampaignCodexExporter.exportCampaignCodexToCompendium()" type="button" title="Export all Campaign Codex content to compendium" style="flex: 1; padding: 4px 8px; font-size: 11px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; height: auto">
           <i class="fas fa-download"></i> Export Campaign Codex
         </button>
       ` : ''}
-      <button class="import-campaign-codex-btn" type="button" title="Import Campaign Codex content from compendium" style="flex: 1; padding: 4px 8px; font-size: 11px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; height: auto">
-        <i class="fas fa-upload"></i> Import Campaign Codex
-      </button>
     </div>
   `);
 
   // Insert at the bottom of the directory
-  html.find('.directory-footer').append(buttonContainer);
-  
-  // If no directory-footer exists, append to the end
-  if (html.find('.directory-footer').length === 0) {
+  const footer = html.find('.directory-footer');
+  if (footer.length > 0) {
+    footer.append(buttonContainer);
+  } else {
     html.find('.directory-list').after(buttonContainer);
   }
-
-// Event listeners for the buttons
-  html.find('.export-campaign-codex-btn').click(() => {
-    SimpleCampaignCodexExporter.exportCampaignCodexToCompendium();
-  });
-
-  html.find('.import-campaign-codex-btn').click(() => {
-    SimpleCampaignCodexExporter.importCampaignCodexFromCompendium();
-  });
-
 
   // Create the button container
   const buttonGrouphead = $(`
@@ -217,8 +207,8 @@ Hooks.on('renderJournalDirectory', (app, html, data) => {
       <button class="create-location-btn" type="button" title="Create New Location" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
         <i class="fas fa-map-marker-alt"></i>
       </button>
-      <button class="create-shop-btn" type="button" title="Create New Shop" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer;">
-        <i class="fas fa-store"></i>
+      <button class="create-shop-btn" type="button" title="Create New Entry" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        <i class="fas fa-book-open"></i>
       </button>
       <button class="create-npc-btn" type="button" title="Create New NPC Journal" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #fd7e14; color: white; border: none; border-radius: 4px; cursor: pointer;">
         <i class="fas fa-user"></i>
@@ -237,7 +227,7 @@ Hooks.on('renderJournalDirectory', (app, html, data) => {
   });
 
   html.find('.create-shop-btn').click(async () => {
-    const name = await promptForName("Shop");
+    const name = await promptForName("Entry");
     if (name) await game.campaignCodex.createShopJournal(name);
   });
 
@@ -422,7 +412,7 @@ Hooks.on('updateJournalEntry', async (document, changes, options, userId) => {
         const appType = app.document.getFlag("campaign-codex", "type");
         
         // Check if this is a Campaign Codex sheet that needs refreshing
-        if (appType && (appDocumentId === documentId || app._isRelatedDocument?.(documentId))) {
+        if (appType && (appDocumentId === documentId || app._isRelatedDocument?.(document.uuid))) {
           // console.log(`Campaign Codex | Refreshing ${appType} sheet: ${app.document.name}`);
           app.render(false);
         }
@@ -445,7 +435,7 @@ Hooks.on('updateActor', async (actor, changes, options, userId) => {
   // Find all NPC journals that link to this actor
   const linkedNPCs = game.journal.filter(j => {
     const npcData = j.getFlag("campaign-codex", "data");
-    return npcData && npcData.linkedActor === actor.id;
+    return npcData && npcData.linkedActor === actor.uuid;
   });
   
   if (linkedNPCs.length === 0) return;
@@ -457,7 +447,7 @@ Hooks.on('updateActor', async (actor, changes, options, userId) => {
     for (const npcJournal of linkedNPCs) {
       // Find and refresh the NPC sheet if it's open
       for (const app of Object.values(ui.windows)) {
-        if (app.document && app.document.id === npcJournal.id) {
+        if (app.document && app.document.uuid === npcJournal.uuid) {
           console.log(`Campaign Codex | Refreshing NPC sheet: ${npcJournal.name}`);
           app.render(false);
           break;
@@ -467,10 +457,10 @@ Hooks.on('updateActor', async (actor, changes, options, userId) => {
       // Also refresh any related sheets that might show this NPC
       setTimeout(async () => {
         for (const app of Object.values(ui.windows)) {
-          if (!app.document || !app.document.getFlag || app.document.id === npcJournal.id) continue;
+          if (!app.document || !app.document.getFlag || app.document.uuid === npcJournal.uuid) continue;
           
           const appType = app.document.getFlag("campaign-codex", "type");
-          if (appType && app._isRelatedDocument && app._isRelatedDocument(npcJournal.id)) {
+          if (appType && app._isRelatedDocument && await app._isRelatedDocument(npcJournal.uuid)) {
             console.log(`Campaign Codex | Refreshing related sheet showing NPC: ${app.document.name}`);
             app.render(false);
           }

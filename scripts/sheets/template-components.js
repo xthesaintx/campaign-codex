@@ -83,7 +83,7 @@ export class TemplateComponents {
     let removeButton = '';
     if (isShopSource && (type === 'location' || type === 'npc')) {
       // Shop-sourced items cannot be removed directly
-      const entityTypeName = type === 'location' ? 'shop-based locations' : 'shop NPCs';
+      const entityTypeName = type === 'location' ? 'shop-based locations' : 'entry NPCs';
       removeButton = `
         <button type="button" class="action-btn remove-${type}" data-${type}-uuid="${entity.uuid}" title="Cannot remove ${entityTypeName} directly" style="opacity: 0.3; cursor: not-allowed; background: #dc3545; color: white; border-color: #dc3545;">
           <i class="fas fa-ban"></i>
@@ -116,7 +116,7 @@ export class TemplateComponents {
           ` : ''}
           ${entity.shops && entity.shops.length > 0 ? `
             <div class="entity-locations shop-tags">
-              <i class="fas fa-store"></i>
+              <i class="fa-book-open"></i>
               ${entity.shops.map(shop => `<span class="location-tag shop-tag">${shop}</span>`).join('')}
             </div>
           ` : ''}
@@ -136,7 +136,7 @@ export class TemplateComponents {
   static emptyState(type) {
     const icons = {
       location: 'fas fa-map-marker-alt',
-      shop: 'fas fa-store',
+      shop: 'fas fa-book-open',
       npc: 'fas fa-users',
       associate: 'fas fa-users',
       item: 'fas fa-boxes'
@@ -144,7 +144,7 @@ export class TemplateComponents {
 
     const messages = {
       location: 'No Locations',
-      shop: 'No Shops', 
+      shop: 'No Entries', 
       npc: 'No NPCs',
       associate: 'No Associates',
       item: 'No Items'
@@ -152,7 +152,7 @@ export class TemplateComponents {
 
     const descriptions = {
       location: 'Drag location journals here to add them',
-      shop: 'Drag shop journals here to add them',
+      shop: 'Drag entry journals here to add them',
       npc: 'Drag NPCs here to add them',
       associate: 'Drag NPCs here to create relationships',
       item: 'Drag items here to add to inventory'

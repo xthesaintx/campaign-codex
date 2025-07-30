@@ -230,7 +230,7 @@ static async getAllLocations(document, directLocationUuids) {
           uuid: journal.uuid,
           name: journal.name,
           img: imageData,
-          meta: `<span class="entity-stat">${totalNPCs} NPCs</span> <span class="entity-stat">${shopCount} Shops</span>`
+          meta: `<span class="entity-stat">${totalNPCs} NPCs</span> <span class="entity-stat">${shopCount} Entries</span>`
         });
       } catch (error) {
         console.error(`Campaign Codex | Error processing location ${uuid}:`, error);
