@@ -19,6 +19,30 @@ export class SimpleCampaignCodexExporter {
       const config = await this._getExportConfig();
       if (!config) return; // User cancelled
 
+if (config.performCleanup) {
+  ui.notifications.info("Performing cleanup before export...");
+  try {
+    // Import the CleanUp class if not already available
+    if (typeof CleanUp !== 'undefined' && CleanUp.performManualCleanup) {
+      await CleanUp.performManualCleanup();
+    } else if (game.campaignCodexCleanup?.constructor?.performManualCleanup) {
+      await game.campaignCodexCleanup.constructor.performManualCleanup();
+    } else {
+      console.warn("Campaign Codex | Cleanup not available, skipping...");
+      ui.notifications.warn("Cleanup functionality not available, continuing with export...");
+    }
+    ui.notifications.info("Cleanup completed successfully.");
+  } catch (error) {
+    console.error("Campaign Codex | Cleanup failed:", error);
+    ui.notifications.warn("Cleanup encountered errors, but export will continue...");
+  }
+}
+
+
+
+
+
+
       // 2. Create the set of new compendiums inside a dedicated folder
       const compendiums = await this._createCompendiumSet(config.baseName);
       if (!compendiums) return;
@@ -298,44 +322,58 @@ export class SimpleCampaignCodexExporter {
   // UI & UTILITY METHODS
   // ===========================================
 
-  /**
-   * Prompts the user to enter a base name for the new compendium set.
-   * @returns {Promise<Object|null>}
-   */
-  static async _getExportConfig() {
-    return new Promise((resolve) => {
-      new Dialog({
-        title: "Export Campaign Codex",
-        content: `
-          <form class="flexcol">
-            <div class="form-group">
-              <label>Compendium Set Name:</label>
-              <input type="text" name="baseName" value="My Campaign" style="width: 100%;" />
-              <p style="font-size: 11px; color: #666; margin: 4px 0;">
-                This will create a set of compendiums, e.g., <strong>[Name] - CC Journals</strong>.
-              </p>
-            </div>
-          </form>
-        `,
-        buttons: {
-          export: {
-            icon: '<i class="fas fa-download"></i>',
-            label: "Export",
-            callback: (html) => {
-              const baseName = html.find('[name="baseName"]').val()?.trim();
-              resolve({ baseName: baseName || "My Campaign" });
-            }
-          },
-          cancel: {
-            icon: '<i class="fas fa-times"></i>',
-            label: "Cancel",
-            callback: () => resolve(null)
+/**
+ * Prompts the user to enter a base name for the new compendium set.
+ * @returns {Promise<Object|null>}
+ */
+static async _getExportConfig() {
+  return new Promise((resolve) => {
+    new Dialog({
+      title: "Export Campaign Codex",
+      content: `
+        <form class="flexcol">
+          <div class="form-group">
+            <label>Compendium Set Name:</label>
+            <input type="text" name="baseName" value="My Campaign" style="width: 100%;" />
+            <p style="font-size: 11px; color: #666; margin: 4px 0;">
+              This will create a set of compendiums, e.g., <strong>[Name] - CC Journals</strong>.
+            </p>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" name="performCleanup" checked />
+              Perform cleanup before export
+            </label>
+            <p style="font-size: 11px; color: #666; margin: 4px 0;">
+              <i class="fas fa-info-circle"></i> 
+              Removes broken links and fixes orphaned relationships before exporting.
+            </p>
+          </div>
+        </form>
+      `,
+      buttons: {
+        export: {
+          icon: '<i class="fas fa-download"></i>',
+          label: "Export",
+          callback: (html) => {
+            const baseName = html.find('[name="baseName"]').val()?.trim();
+            const performCleanup = html.find('[name="performCleanup"]').is(':checked');
+            resolve({ 
+              baseName: baseName || "My Campaign",
+              performCleanup: performCleanup
+            });
           }
         },
-        default: "export"
-      }).render(true);
-    });
-  }
+        cancel: {
+          icon: '<i class="fas fa-times"></i>',
+          label: "Cancel",
+          callback: () => resolve(null)
+        }
+      },
+      default: "export"
+    }).render(true);
+  });
+}
 
   /**
    * Creates a set of three compendiums for the export inside a main folder.

@@ -8,6 +8,7 @@ import { SimpleCampaignCodexExporter } from './campaign-codex-exporter.js';
 import { CampaignCodexJournalConverter } from './campaign-codex-convertor.js';
 import { NPCDropper } from './npc-dropper.js';
 import { CampaignCodexTokenPlacement } from './token-placement.js';
+import { GroupSheet } from './sheets/group-sheet.js';
 
 
 Hooks.once('init', async function() {
@@ -33,6 +34,11 @@ Hooks.once('init', async function() {
   DocumentSheetConfig.registerSheet(JournalEntry, "campaign-codex", RegionSheet, {
     makeDefault: false,
     label: "Campaign Codex: Region"
+  });
+    // Register Group Sheet
+  DocumentSheetConfig.registerSheet(JournalEntry, "campaign-codex", GroupSheet, {
+    makeDefault: false,
+    label: "Campaign Codex: Group Overview"
   });
 
   // Register settings
@@ -82,7 +88,8 @@ async function ensureCampaignCodexFolders() {
     "Campaign Codex - Locations": "location",
     "Campaign Codex - Entries": "shop", 
     "Campaign Codex - NPCs": "npc",
-    "Campaign Codex - Regions": "region"
+    "Campaign Codex - Regions": "region",
+    "Campaign Codex - Groups": "group"
   };
 
   for (const [folderName, type] of Object.entries(folderNames)) {
@@ -110,7 +117,8 @@ function getFolderColor(type) {
     location: "#28a745",
     shop: "#6f42c1", 
     npc: "#fd7e14",
-    region: "#20c997"
+    region: "#20c997",
+    group:"#17a2b8"
   };
   return colors[type] || "#999999";
 }
@@ -123,7 +131,8 @@ function getCampaignCodexFolder(type) {
     location: "Campaign Codex - Locations",
     shop: "Campaign Codex - Entries",
     npc: "Campaign Codex - NPCs", 
-    region: "Campaign Codex - Regions"
+    region: "Campaign Codex - Regions",
+    group: "Campaign Codex - Groups"
   };
   
   const folderName = folderNames[type];
@@ -194,6 +203,7 @@ Hooks.on('renderJournalDirectory', (app, html, data) => {
     </div>
   `);
 
+
   // Insert at the bottom of the directory
   const footer = html.find('.directory-footer');
   if (footer.length > 0) {
@@ -217,8 +227,16 @@ Hooks.on('renderJournalDirectory', (app, html, data) => {
       <button class="create-npc-btn" type="button" title="Create New NPC Journal" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #fd7e14; color: white; border: none; border-radius: 4px; cursor: pointer;">
         <i class="fas fa-user"></i>
       </button>
+      <button class="create-group-btn" type="button" title="Create New Group Overview" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        <i class="fas fa-layer-group"></i>
+      </button>
     </div>
   `);
+
+
+
+
+
 
   // Insert into the directory header
   const directoryHeader = html.find('.directory-header');
@@ -244,6 +262,15 @@ Hooks.on('renderJournalDirectory', (app, html, data) => {
     const name = await promptForName("Region");
     if (name) await game.campaignCodex.createRegionJournal(name);
   });
+
+    // Add event listener for group button
+    html.find('.create-group-btn').click(async () => {
+      const name = await promptForName("Group Overview");
+      if (name) await game.campaignCodex.createGroupJournal(name);
+    });
+
+
+
 });
 
 
@@ -281,8 +308,13 @@ Hooks.on('createJournalEntry', async (document, options, userId) => {
     case "region":
       sheetClass = "campaign-codex.RegionSheet";
       break;
+    case "group":
+      sheetClass = "campaign-codex.GroupSheet";
+      break;  
   }
+  
 
+  
   if (sheetClass) {
     await document.update({
       "flags.core.sheetClass": sheetClass
@@ -305,6 +337,9 @@ Hooks.on('createJournalEntry', async (document, options, userId) => {
         break;
       case "region":
         targetSheet = RegionSheet;
+        break;
+      case "group":
+        targetSheet = GroupSheet;
         break;
     }
 
@@ -340,6 +375,10 @@ Hooks.on('renderJournalEntry', (journal, html, data) => {
     case "region":
       if (currentSheetName !== "RegionSheet") targetSheet = RegionSheet;
       break;
+    case "group":
+      if (currentSheetName !== "GroupSheet") targetSheet = GroupSheet;
+      break;
+
   }
 
   if (targetSheet) {
@@ -395,6 +434,7 @@ async function promptForName(type) {
 
 // Handle bidirectional relationship updates and sheet refreshing
 Hooks.on('updateJournalEntry', async (document, changes, options, userId) => {
+  if (document._skipRelationshipUpdates) return;
   if (game.user.id !== userId) return;
   
   const type = document.getFlag("campaign-codex", "type");

@@ -925,4 +925,43 @@ async addItemToShop(shopDoc, itemDoc, quantity = 1) {
     
     return allLinkedUuids.includes(changedDocUuid);
   }
+
+
+async createGroupJournal(name = "New Group Overview") {
+  const creationKey = `group-${name}`;
+  if (this._creationQueue.has(creationKey)) return;
+  this._creationQueue.add(creationKey);
+
+  try {
+    const journalData = {
+      name: name,
+      flags: {
+        "campaign-codex": {
+          type: "group",
+          data: {
+            description: "",
+            members: [], // Array of UUIDs for group members
+            notes: ""
+          }
+        },
+        "core": {
+          sheetClass: "campaign-codex.GroupSheet"
+        }
+      },
+      pages: [{
+        name: "Overview",
+        type: "text",
+        text: { content: `<h1>${name}</h1><p>Group overview...</p>` }
+      }]
+    };
+
+    const journal = await JournalEntry.create(journalData);
+    return journal;
+  } finally {
+    this._creationQueue.delete(creationKey);
+  }
+}
+
+
+
 }

@@ -116,7 +116,7 @@ export class TemplateComponents {
           ` : ''}
           ${entity.shops && entity.shops.length > 0 ? `
             <div class="entity-locations shop-tags">
-              <i class="fa-book-open"></i>
+              <i class="fas fa-book-open"></i>
               ${entity.shops.map(shop => `<span class="location-tag shop-tag">${shop}</span>`).join('')}
             </div>
           ` : ''}
@@ -436,4 +436,88 @@ static inventoryTable(inventory, isLootMode = false) {
       </div>
     `;
   }
+
+
+
+
+
+static groupMemberCard(member, children = []) {
+  const childrenCount = children.length;
+  const hasChildren = childrenCount > 0;
+  
+  return `
+    <div class="group-member-card" data-uuid="${member.uuid}" data-type="${member.type}">
+      <div class="member-header ${hasChildren ? 'expandable' : ''}" data-uuid="${member.uuid}">
+        ${hasChildren ? '<i class="fas fa-chevron-right expand-icon"></i>' : '<i class="member-spacer"></i>'}
+        <img src="${member.img}" class="member-icon" alt="${member.name}">
+        <div class="member-info">
+          <span class="member-name">${member.name}</span>
+          <span class="member-type">${member.type}</span>
+          ${hasChildren ? `<span class="member-count">(${childrenCount})</span>` : ''}
+        </div>
+        <div class="member-actions">
+          <button type="button" class="btn-open-sheet" data-uuid="${member.uuid}" title="Open Sheet">
+            <i class="fas fa-external-link-alt"></i>
+          </button>
+          <button type="button" class="btn-remove-member" data-uuid="${member.uuid}" title="Remove from Group">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      
+      ${hasChildren ? `
+        <div class="member-children" style="display: none;">
+          ${children.map(child => `
+            <div class="child-member" data-uuid="${child.uuid}">
+              <img src="${child.img}" class="child-icon" alt="${child.name}">
+              <span class="child-name">${child.name}</span>
+              <span class="child-type">${child.type}</span>
+              <div class="child-actions">
+                <button type="button" class="btn-open-sheet" data-uuid="${child.uuid}" title="Open Sheet">
+                  <i class="fas fa-external-link-alt"></i>
+                </button>
+                <button type="button" class="btn-focus-item" data-uuid="${child.uuid}" title="Focus in Tab">
+                  <i class="fas fa-search"></i>
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+static statCard(icon, value, label, color = null) {
+  return `
+    <div class="stat-card">
+      <div class="stat-icon" ${color ? `style="background: ${color};"` : ''}>
+        <i class="${icon}"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-number">${value}</div>
+        <div class="stat-label">${label}</div>
+      </div>
+    </div>
+  `;
+}
+
+static filterButtons(filters) {
+  return `
+    <div class="filter-buttons">
+      ${filters.map((filter, index) => `
+        <button type="button" class="filter-btn ${index === 0 ? 'active' : ''}" data-filter="${filter.key}">
+          ${filter.label}
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
+
+
+
+
+
+
 }

@@ -20,10 +20,10 @@ export class LocationSheet extends CampaignCodexBaseSheet {
 
    
     // Get linked documents - split direct and auto-populated NPCs
-    data.directNPCs = await CampaignCodexLinkers.getDirectNPCs(locationData.linkedNPCs || []);
-    data.shopNPCs = await CampaignCodexLinkers.getShopNPCs(locationData.linkedShops || []);
+    data.directNPCs = await CampaignCodexLinkers.getDirectNPCs(this.document,locationData.linkedNPCs || []);
+    data.shopNPCs = await CampaignCodexLinkers.getShopNPCs(this.document,locationData.linkedShops || []);
     data.allNPCs = [...data.directNPCs, ...data.shopNPCs];
-    data.linkedShops = await CampaignCodexLinkers.getLinkedShops(locationData.linkedShops || []);
+    data.linkedShops = await CampaignCodexLinkers.getLinkedShops(this.document, locationData.linkedShops || []);
     data.linkedRegion = await CampaignCodexLinkers.getLinkedRegion(this.document);
     
     // Sheet configuration
@@ -138,7 +138,7 @@ export class LocationSheet extends CampaignCodexBaseSheet {
 _generateNPCsTab(data) {
   // Only show drop button for direct NPCs (not shop NPCs)
   const dropToMapBtn = (canvas.scene && data.directNPCs && data.directNPCs.length > 0) ? `
-    <button type="button" class="refresh-btn drop-npcs-to-map" title="Drop direct NPCs to current scene">
+    <button type="button" class="refresh-btn npcs-to-map-button" title="Drop direct NPCs to current scene">
       <i class="fas fa-map"></i>
       Drop Direct NPCs
     </button>
@@ -157,8 +157,7 @@ _generateNPCsTab(data) {
         <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
           <i class="fas fa-user" style="color: var(--cc-accent); margin-right: 8px;"></i>
           Direct NPCs (${data.directNPCs.length}) 
-          ${canvas.scene ? '<button type="button" class="drop-direct-npcs-btn" style="margin-left: 8px; padding: 2px 6px; font-size: 10px; background: var(--cc-primary); color: white; border: none; border-radius: 3px; cursor: pointer;" title="Drop only direct NPCs"><i class="fas fa-map"></i></button>' : ''}
-        </h3>
+         </h3>
         ${TemplateComponents.entityGrid(data.directNPCs, 'npc', true)}
       </div>
     `;
@@ -281,7 +280,7 @@ async _onDropNPCsToMapClick(event) {
   
   // Get current data to access direct NPCs
   const locationData = this.document.getFlag("campaign-codex", "data") || {};
-  const directNPCs = await CampaignCodexLinkers.getDirectNPCs(locationData.linkedNPCs || []);
+  const directNPCs = await CampaignCodexLinkers.getDirectNPCs(this.document,locationData.linkedNPCs || []);
   
   // Only drop direct NPCs for locations
   if (directNPCs && directNPCs.length > 0) {

@@ -20,7 +20,7 @@ export class RegionSheet extends CampaignCodexBaseSheet {
 
      
     // Get linked documents with complete hierarchy
-    data.linkedLocations = await CampaignCodexLinkers.getLinkedLocations(regionData.linkedLocations || []);
+    data.linkedLocations = await CampaignCodexLinkers.getLinkedLocations(this.document,regionData.linkedLocations || []);
     data.allNPCs = await CampaignCodexLinkers.getAllNPCs(regionData.linkedLocations || []);
     data.allShops = await CampaignCodexLinkers.getAllShops(regionData.linkedLocations || []);
     
@@ -54,7 +54,7 @@ export class RegionSheet extends CampaignCodexBaseSheet {
     data.statistics = [
       { icon: 'fas fa-map-marker-alt', value: data.linkedLocations.length, label: 'LOCATIONS', color: '#28a745' },
       { icon: 'fas fa-users', value: data.allNPCs.length, label: 'NPCS', color: '#fd7e14' },
-      { icon: 'fa-book-open', value: data.allShops.length, label: 'ENTRIES', color: '#6f42c1' }
+      { icon: 'fas fa-book-open', value: data.allShops.length, label: 'ENTRIES', color: '#6f42c1' }
     ];
     
     // Quick links

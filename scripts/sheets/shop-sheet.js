@@ -22,13 +22,14 @@ export class ShopSheet extends CampaignCodexBaseSheet {
 
     // Get linked documents
     data.linkedNPCs = await CampaignCodexLinkers.getLinkedNPCs(shopData.linkedNPCs || []);
+    data.linkedNPCs = await CampaignCodexLinkers.getLinkedNPCs(this.document, shopData.linkedNPCs || []);
     data.linkedLocation = shopData.linkedLocation ? await CampaignCodexLinkers.getLinkedLocation(shopData.linkedLocation) : null;
     data.inventory = await CampaignCodexLinkers.getInventory(this.document, shopData.inventory || []);
     
     // Sheet configuration
     data.sheetType = "shop";
     data.sheetTypeLabel = "Entry";
-    data.customImage = this.document.getFlag("campaign-codex", "image") || "icons/svg/item-bag.svg";
+    data.customImage = this.document.getFlag("campaign-codex", "image") || "icons/svg/house.svg";
     data.markup = shopData.markup || 1.0;
     
     // Navigation tabs
@@ -180,7 +181,7 @@ export class ShopSheet extends CampaignCodexBaseSheet {
 
 _generateNPCsTab(data) {
   const dropToMapBtn = canvas.scene ? `
-    <button type="button" class="refresh-btn drop-to-map-btn" title="Drop NPCs to current scene">
+    <button type="button" class="refresh-btn npcs-to-map-button" title="Drop NPCs to current scene">
       <i class="fas fa-map"></i>
       Drop to Map
     </button>
@@ -497,7 +498,7 @@ async _onDropNPCsToMapClick(event) {
   
   // Get current data to access linked NPCs
   const shopData = this.document.getFlag("campaign-codex", "data") || {};
-  const linkedNPCs = await CampaignCodexLinkers.getLinkedNPCs(shopData.linkedNPCs || []);
+  const linkedNPCs = await CampaignCodexLinkers.getLinkedNPCs(this.document,shopData.linkedNPCs || []);
   
   if (linkedNPCs && linkedNPCs.length > 0) {
     await this._onDropNPCsToMap(linkedNPCs, { 

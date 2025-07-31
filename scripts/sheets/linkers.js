@@ -8,11 +8,9 @@ export class CampaignCodexLinkers {
    * @param {string} fieldName - The field name to clean (e.g., 'linkedLocations', 'linkedNPCs')
    */
   static async clearBrokenReferences(document, brokenUuids, fieldName) {
-    if (!brokenUuids || brokenUuids.length === 0) return;
+    if (!document || !brokenUuids || brokenUuids.length === 0) return;
     
     try {
-      //console.log (`Campaign Codex | Clearing ${brokenUuids.length} broken ${fieldName} references`);
-      
       const currentData = document.getFlag("campaign-codex", "data") || {};
       const currentArray = currentData[fieldName] || [];
       
@@ -24,7 +22,6 @@ export class CampaignCodexLinkers {
         await document.setFlag("campaign-codex", "data", currentData);
         
         const removedCount = currentArray.length - cleanedArray.length;
-        //console.log (`Campaign Codex | Removed ${removedCount} broken ${fieldName} references from ${document.name}`);
         ui.notifications.warn(`Removed ${removedCount} broken ${fieldName} references from ${document.name}`);
       }
     } catch (error) {
@@ -36,17 +33,16 @@ export class CampaignCodexLinkers {
   // LOCATION METHODS
   // ===========================================
 
- /**
- * Get all locations for an NPC (direct + shop-discovered)
- */
-static async getAllLocations(document, directLocationUuids) {
-  if (!directLocationUuids || !Array.isArray(directLocationUuids)) return [];
-  
-  //console.log ("Processing direct location UUIDs:", directLocationUuids);
-  const locationMap = new Map();
-  const brokenLocationUuids = [];
-  const brokenShopUuids = [];
-  try {
+  /**
+  * Get all locations for an NPC (direct + shop-discovered)
+  */
+  static async getAllLocations(document, directLocationUuids) {
+    if (!directLocationUuids || !Array.isArray(directLocationUuids)) return [];
+    
+    const locationMap = new Map();
+    const brokenLocationUuids = [];
+    const brokenShopUuids = [];
+
     // First, add directly linked locations
     for (const uuid of directLocationUuids) {
       try {
@@ -72,92 +68,77 @@ static async getAllLocations(document, directLocationUuids) {
       }
     }
     
-    // Clear broken references if any were found
+    // Clear broken direct location references if any were found
     if (brokenLocationUuids.length > 0) {
+      document._skipRelationshipUpdates = true;
       await this.clearBrokenReferences(document, brokenLocationUuids, 'linkedLocations');
+      delete document._skipRelationshipUpdates;
     }
     
     // Then, discover locations through shop associations
-    const npcId = document.id;
     const npcData = document.getFlag("campaign-codex", "data") || {};
     const npcLinkedShopUuids = npcData.linkedShops || [];
     
-    //console.log (`Campaign Codex | NPC ${document.name} is linked to shops:`, npcLinkedShopUuids);
-    
-    try {
-      // Only check shops that this NPC is actually linked to
-      for (const shopUuid of npcLinkedShopUuids) {
-        try {
-          const shop = await fromUuid(shopUuid);
-          if (!shop) {
-            console.warn(`Campaign Codex | Shop not found: ${shopUuid}`);
-            continue;
-          }
-          
-          const shopData = shop.getFlag("campaign-codex", "data") || {};
-          const linkedNPCUuids = shopData.linkedNPCs || [];
-          
-          // Double-check that this NPC is actually linked to this shop
-          if (linkedNPCUuids.includes(document.uuid)) {
-            // Find the location that contains this shop
-            const shopLocationUuid = shopData.linkedLocation;
-            
-            if (shopLocationUuid) {
-              const location = await fromUuid(shopLocationUuid);
-              if (location) {
-                // Verify that the location actually links to this shop
-                const locationData = location.getFlag("campaign-codex", "data") || {};
-                const locationShopUuids = locationData.linkedShops || [];
-                
-                if (locationShopUuids.includes(shop.uuid)) {
-                  if (!locationMap.has(location.id)) {
-                    locationMap.set(location.id, {
-                      id: location.id,
-                      uuid: location.uuid,
-                      name: location.name,
-                      img: location.getFlag("campaign-codex", "image") || "icons/svg/direction.svg",
-                      source: 'shop',
-                      shops: [shop.name],
-                      meta: `<span class="entity-type">Via ${shop.name}</span>`
-                    });
-                    //console.log (`Campaign Codex | Added shop-based location ${location.name} via shop ${shop.name}`);
-                  } else {
-                    // Location already exists, add shop to the list
-                    const existingLocation = locationMap.get(location.id);
-                    if (existingLocation.source === 'shop') {
-                      if (!existingLocation.shops.includes(shop.name)) {
-                        existingLocation.shops.push(shop.name);
-                        existingLocation.meta = `<span class="entity-type">Via ${existingLocation.shops.join(', ')}</span>`;
-                      }
-                    }
+    for (const shopUuid of npcLinkedShopUuids) {
+      try {
+        const shop = await fromUuid(shopUuid);
+        if (!shop) {
+          console.warn(`Campaign Codex | Shop not found during location discovery: ${shopUuid}`);
+          brokenShopUuids.push(shopUuid);
+          continue;
+        }
+        
+        const shopData = shop.getFlag("campaign-codex", "data") || {};
+        const linkedNPCUuids = shopData.linkedNPCs || [];
+        
+        if (linkedNPCUuids.includes(document.uuid)) {
+          const shopLocationUuid = shopData.linkedLocation;
+          if (shopLocationUuid) {
+            const location = await fromUuid(shopLocationUuid);
+            if (location) {
+              const locationData = location.getFlag("campaign-codex", "data") || {};
+              const locationShopUuids = locationData.linkedShops || [];
+              
+              if (locationShopUuids.includes(shop.uuid)) {
+                if (!locationMap.has(location.id)) {
+                  locationMap.set(location.id, {
+                    id: location.id,
+                    uuid: location.uuid,
+                    name: location.name,
+                    img: location.getFlag("campaign-codex", "image") || "icons/svg/direction.svg",
+                    source: 'shop',
+                    shops: [shop.name],
+                    meta: `<span class="entity-type">Via ${shop.name}</span>`
+                  });
+                } else {
+                  const existingLocation = locationMap.get(location.id);
+                  if (existingLocation.source === 'shop' && !existingLocation.shops.includes(shop.name)) {
+                    existingLocation.shops.push(shop.name);
+                    existingLocation.meta = `<span class="entity-type">Via ${existingLocation.shops.join(', ')}</span>`;
                   }
                 }
               }
             }
-          } else {
-            console.warn(`Campaign Codex | NPC ${document.name} thinks it's linked to shop ${shop.name}, but shop doesn't link back`);
-            brokenShopUuids.push(shopUuid);
           }
-        } catch (error) {
-          console.error(`Campaign Codex | Error processing shop ${shopUuid}:`, error);
+        } else {
+          console.warn(`Campaign Codex | NPC ${document.name} thinks it's linked to shop ${shop.name}, but shop doesn't link back.`);
+          brokenShopUuids.push(shopUuid);
         }
+      } catch (error) {
+        console.error(`Campaign Codex | Error processing shop ${shopUuid} for location discovery:`, error);
       }
-    } catch (error) {
-      console.error(`Campaign Codex | Error in shop-based location discovery:`, error);
     }
     
-  } catch (error) {
-    console.error(`Campaign Codex | Critical error in getAllLocations:`, error);
-    await this.clearBrokenReferences(document, directLocationUuids, 'linkedLocations');
-    return [];
+    // Clear broken shop references on the NPC if any were found
+    if (brokenShopUuids.length > 0) {
+      document._skipRelationshipUpdates = true;
+      await this.clearBrokenReferences(document, brokenShopUuids, 'linkedShops');
+      delete document._skipRelationshipUpdates;
+    }
+
+    return Array.from(locationMap.values());
   }
-  if (brokenShopUuids.length > 0) {
-  await this.clearBrokenReferences(document, brokenShopUuids, 'linkedShops');
-}
-  const result = Array.from(locationMap.values());
-  //console.log (`Campaign Codex | Final locations for ${document.name}:`, result.map(l => `${l.name} (${l.source})`));
-  return result;
-}
+  
   /**
    * Get a single linked location
    */
@@ -186,9 +167,9 @@ static async getAllLocations(document, directLocationUuids) {
   }
 
   /**
-   * Get linked locations with stats
+   * Get linked locations with stats (e.g., for a Region sheet)
    */
-  static async getLinkedLocations(locationUuids) {
+  static async getLinkedLocations(document, locationUuids) {
     if (!locationUuids || !Array.isArray(locationUuids)) return [];
     
     const locations = [];
@@ -207,7 +188,6 @@ static async getAllLocations(document, directLocationUuids) {
         const directNPCCount = (locationData.linkedNPCs || []).length;
         const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
         
-        // Count shop NPCs
         let shopNPCCount = 0;
         const shopUuids = locationData.linkedShops || [];
         for (const shopUuid of shopUuids) {
@@ -217,9 +197,7 @@ static async getAllLocations(document, directLocationUuids) {
               const shopData = shop.getFlag("campaign-codex", "data") || {};
               shopNPCCount += (shopData.linkedNPCs || []).length;
             }
-          } catch (error) {
-            console.error(`Campaign Codex | Error counting shop NPCs for shop ${shopUuid}:`, error);
-          }
+          } catch (e) {/* Gulp */}
         }
         
         const totalNPCs = directNPCCount + shopNPCCount;
@@ -230,12 +208,18 @@ static async getAllLocations(document, directLocationUuids) {
           uuid: journal.uuid,
           name: journal.name,
           img: imageData,
-          meta: `<span class="entity-stat">${totalNPCs} NPCs</span> <span class="entity-stat">${shopCount} Entries</span>`
+          meta: `<span class="entity-stat">${totalNPCs}&nbsp;NPCs</span> <span class="entity-stat">${shopCount}&nbsp;Entries</span>`
         });
       } catch (error) {
         console.error(`Campaign Codex | Error processing location ${uuid}:`, error);
         brokenLocationUuids.push(uuid);
       }
+    }
+    
+    if (brokenLocationUuids.length > 0) {
+      document._skipRelationshipUpdates = true;
+      await this.clearBrokenReferences(document, brokenLocationUuids, 'linkedLocations');
+      delete document._skipRelationshipUpdates;
     }
     
     return locations;
@@ -245,38 +229,35 @@ static async getAllLocations(document, directLocationUuids) {
   // REGION METHODS
   // ===========================================
 
-/**
- * Get the region that contains a location using a direct two-way link.
- */
-static async getLinkedRegion(locationDoc) {
-  const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
-  const regionUuid = locationData.parentRegion;
+  /**
+  * Get the region that contains a location using a direct two-way link.
+  */
+  static async getLinkedRegion(locationDoc) {
+    const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
+    const regionUuid = locationData.parentRegion;
 
-  if (!regionUuid) {
-    return null; // No region is linked
-  }
+    if (!regionUuid) return null;
 
-  try {
-    const region = await fromUuid(regionUuid);
-    if (!region) {
-      // The link is broken, optionally clean it up
-      console.warn(`Campaign Codex | Broken parentRegion link: ${regionUuid}`);
-      // await locationDoc.unsetFlag("campaign-codex", "data.parentRegion"); // Optional cleanup
+    try {
+      const region = await fromUuid(regionUuid);
+      if (!region) {
+        console.warn(`Campaign Codex | Broken parentRegion link from ${locationDoc.name}: ${regionUuid}`);
+        await locationDoc.unsetFlag("campaign-codex", "data.parentRegion");
+        ui.notifications.warn(`Removed broken parent region link from ${locationDoc.name}.`);
+        return null;
+      }
+      
+      return {
+        id: region.id,
+        uuid: region.uuid,
+        name: region.name,
+        img: region.getFlag("campaign-codex", "image") || "icons/svg/direction.svg"
+      };
+    } catch (error) {
+      console.error(`Campaign Codex | Error fetching linked region ${regionUuid}:`, error);
       return null;
     }
-    
-    return {
-      id: region.id,
-      uuid: region.uuid,
-      name: region.name,
-      img: region.getFlag("campaign-codex", "image") || "icons/svg/direction.svg"
-    };
-  } catch (error) {
-    console.error(`Campaign Codex | Error fetching linked region ${regionUuid}:`, error);
-    return null;
   }
-}
-
 
   // ===========================================
   // ACTOR/NPC METHODS
@@ -300,12 +281,8 @@ static async getLinkedRegion(locationDoc) {
         uuid: actor.uuid,
         name: actor.name,
         img: actor.img,
-        // race: actor.system.details?.race || "",
-        // class: actor.system.details?.class || "", 
-        // level: actor.system.details?.level || 1,
         ac: actor.system.attributes?.ac?.value || 10,
         hp: actor.system.attributes?.hp || { value: 0, max: 0 },
-        // speed: actor.system.attributes?.movement?.walk || 30,
         type: actor.type
       };
     } catch (error) {
@@ -317,7 +294,7 @@ static async getLinkedRegion(locationDoc) {
   /**
    * Get associate NPCs
    */
-  static async getAssociates(associateUuids) {
+  static async getAssociates(document, associateUuids) {
     if (!associateUuids || !Array.isArray(associateUuids)) return [];
     
     const associates = [];
@@ -336,7 +313,8 @@ static async getLinkedRegion(locationDoc) {
         const actor = npcData.linkedActor ? await fromUuid(npcData.linkedActor) : null;
         const imageData = journal.getFlag("campaign-codex", "image") || actor?.img || "icons/svg/direction.svg";
         const allLocations = await this.getAllLocations(journal, npcData.linkedLocations || []);
-        const linkedShops = await this.getLinkedShopsWithLocation(npcData.linkedShops || []);
+        const linkedShops = await this.getLinkedShopsWithLocation(journal, npcData.linkedShops || []);
+
         associates.push({
           id: journal.id,
           uuid: journal.uuid,
@@ -344,13 +322,19 @@ static async getLinkedRegion(locationDoc) {
           img: imageData,
           actor: actor,
           meta: game.campaignCodex.getActorDisplayMeta(actor),
-          locations: allLocations.map(loc => loc.name), // Extract just the names
-          shops: linkedShops.map(shop => shop.name)     // Extract just the names
+          locations: allLocations.map(loc => loc.name),
+          shops: linkedShops.map(shop => shop.name)
         });
       } catch (error) {
         console.error(`Campaign Codex | Error processing associate ${uuid}:`, error);
         brokenAssociateUuids.push(uuid);
       }
+    }
+    
+    if (brokenAssociateUuids.length > 0) {
+      document._skipRelationshipUpdates = true;
+      await this.clearBrokenReferences(document, brokenAssociateUuids, 'associates');
+      delete document._skipRelationshipUpdates;
     }
     
     return associates;
@@ -359,7 +343,7 @@ static async getLinkedRegion(locationDoc) {
   /**
    * Get linked NPCs
    */
-  static async getLinkedNPCs(npcUuids) {
+  static async getLinkedNPCs(document, npcUuids) {
     if (!npcUuids || !Array.isArray(npcUuids)) return [];
     
     const npcs = [];
@@ -392,6 +376,12 @@ static async getLinkedRegion(locationDoc) {
       }
     }
     
+    if (brokenNPCUuids.length > 0) {
+      document._skipRelationshipUpdates = true;
+      await this.clearBrokenReferences(document, brokenNPCUuids, 'linkedNPCs');
+      delete document._skipRelationshipUpdates;
+    }
+    
     return npcs;
   }
 
@@ -407,43 +397,27 @@ static async getLinkedRegion(locationDoc) {
       try {
         const location = await fromUuid(locationUuid);
         if (!location) {
-          console.warn(`Campaign Codex | Location not found: ${locationUuid}`);
+          console.warn(`Campaign Codex | Location not found for NPC aggregation: ${locationUuid}`);
           continue;
         }
         
         const locationData = location.getFlag("campaign-codex", "data") || {};
         
         // Get direct location NPCs
-        const directNPCUuids = locationData.linkedNPCs || [];
-        for (const npcUuid of directNPCUuids) {
-          try {
-            const npcJournal = await fromUuid(npcUuid);
-            if (!npcJournal) continue;
-            
-            if (!npcMap.has(npcJournal.id)) {
-              const npcData = npcJournal.getFlag("campaign-codex", "data") || {};
-              const actor = npcData.linkedActor ? await fromUuid(npcData.linkedActor) : null;
-              const imageData = npcJournal.getFlag("campaign-codex", "image") || actor?.img || "icons/svg/direction.svg";
-
-              npcMap.set(npcJournal.id, {
-                id: npcJournal.id,
-                uuid: npcJournal.uuid,
-                name: npcJournal.name,
-                img: imageData,
-                actor: actor,
-                locations: [location.name],
-                shops: [],
-                meta: game.campaignCodex.getActorDisplayMeta(actor),
-                source: 'location'
-              });
-            } else {
-              const npc = npcMap.get(npcJournal.id);
-              if (!npc.locations.includes(location.name)) {
-                npc.locations.push(location.name);
-              }
+        const directNPCs = await this.getLinkedNPCs(location, locationData.linkedNPCs || []);
+        for (const npc of directNPCs) {
+          if (!npcMap.has(npc.id)) {
+            npcMap.set(npc.id, {
+              ...npc,
+              locations: [location.name],
+              shops: [],
+              source: 'location'
+            });
+          } else {
+            const existingNpc = npcMap.get(npc.id);
+            if (!existingNpc.locations.includes(location.name)) {
+              existingNpc.locations.push(location.name);
             }
-          } catch (error) {
-            console.error(`Campaign Codex | Error processing direct NPC ${npcUuid}:`, error);
           }
         }
         
@@ -455,57 +429,36 @@ static async getLinkedRegion(locationDoc) {
             if (!shop) continue;
             
             const shopData = shop.getFlag("campaign-codex", "data") || {};
-            const shopNPCUuids = shopData.linkedNPCs || [];
-            
-            for (const npcUuid of shopNPCUuids) {
-              try {
-                const npcJournal = await fromUuid(npcUuid);
-                if (!npcJournal) continue;
-                
-                if (!npcMap.has(npcJournal.id)) {
-                  const npcData = npcJournal.getFlag("campaign-codex", "data") || {};
-                  const actor = npcData.linkedActor ? await fromUuid(npcData.linkedActor) : null;
-                  const imageData = npcJournal.getFlag("campaign-codex", "image") || actor?.img || "icons/svg/direction.svg";
+            const shopNPCs = await this.getLinkedNPCs(shop, shopData.linkedNPCs || []);
 
-                  npcMap.set(npcJournal.id, {
-                    id: npcJournal.id,
-                    uuid: npcJournal.uuid,
-                    name: npcJournal.name,
-                    img: imageData,
-                    actor: actor,
-                    locations: [location.name],
-                    shops: [shop.name],
-                    meta: game.campaignCodex.getActorDisplayMeta(actor),
-                    source: 'shop'
-                  });
-                } else {
-                  const npc = npcMap.get(npcJournal.id);
-                  
-                  // Add location if not already present
-                  if (!npc.locations.includes(location.name)) {
-                    npc.locations.push(location.name);
-                  }
-                  
-                  // Add shop if not already present
-                  if (!npc.shops.includes(shop.name)) {
-                    npc.shops.push(shop.name);
-                  }
-                  
-                  // Update source if this NPC is now found in a shop
-                  if (npc.source === 'location' && shopNPCUuids.includes(npcUuid)) {
-                    npc.source = 'shop';
-                  }
+            for (const npc of shopNPCs) {
+              if (!npcMap.has(npc.id)) {
+                npcMap.set(npc.id, {
+                  ...npc,
+                  locations: [location.name],
+                  shops: [shop.name],
+                  source: 'shop'
+                });
+              } else {
+                const existingNpc = npcMap.get(npc.id);
+                if (!existingNpc.locations.includes(location.name)) {
+                  existingNpc.locations.push(location.name);
                 }
-              } catch (error) {
-                console.error(`Campaign Codex | Error processing shop NPC ${npcUuid}:`, error);
+                if (!existingNpc.shops.includes(shop.name)) {
+                  existingNpc.shops.push(shop.name);
+                }
+                // Update source if this NPC is now found in a shop
+                if (existingNpc.source === 'location') {
+                  existingNpc.source = 'shop';
+                }
               }
             }
           } catch (error) {
-            console.error(`Campaign Codex | Error processing shop ${shopUuid}:`, error);
+            console.error(`Campaign Codex | Error processing shop ${shopUuid} for NPC aggregation:`, error);
           }
         }
       } catch (error) {
-        console.error(`Campaign Codex | Error processing location ${locationUuid}:`, error);
+        console.error(`Campaign Codex | Error processing location ${locationUuid} for NPC aggregation:`, error);
       }
     }
     
@@ -513,18 +466,20 @@ static async getLinkedRegion(locationDoc) {
   }
 
   /**
-   * Get directly linked NPCs
+   * Get directly linked NPCs (WITH document parameter for cleanup)
    */
-  static async getDirectNPCs(npcUuids) {
+  static async getDirectNPCs(document, npcUuids) {
     if (!npcUuids || !Array.isArray(npcUuids)) return [];
     
     const npcs = [];
+    const brokenNPCUuids = [];
     
     for (const uuid of npcUuids) {
       try {
         const journal = await fromUuid(uuid);
         if (!journal) {
           console.warn(`Campaign Codex | Direct NPC journal not found: ${uuid}`);
+          brokenNPCUuids.push(uuid);
           continue;
         }
         
@@ -543,7 +498,14 @@ static async getLinkedRegion(locationDoc) {
         });
       } catch (error) {
         console.error(`Campaign Codex | Error processing direct NPC ${uuid}:`, error);
+        brokenNPCUuids.push(uuid);
       }
+    }
+    
+    if (brokenNPCUuids.length > 0) {
+      document._skipRelationshipUpdates = true;
+      await this.clearBrokenReferences(document, brokenNPCUuids, 'linkedNPCs');
+      delete document._skipRelationshipUpdates;
     }
     
     return npcs;
@@ -552,55 +514,55 @@ static async getLinkedRegion(locationDoc) {
   /**
    * Get NPCs from linked shops
    */
-  static async getShopNPCs(shopUuids) {
+  static async getShopNPCs(document, shopUuids) {
     if (!shopUuids || !Array.isArray(shopUuids)) return [];
     
     const npcMap = new Map();
+    const brokenShopUuids = [];
     
     for (const shopUuid of shopUuids) {
       try {
         const shop = await fromUuid(shopUuid);
         if (!shop) {
           console.warn(`Campaign Codex | Shop not found: ${shopUuid}`);
+          brokenShopUuids.push(shopUuid);
           continue;
         }
         
         const shopData = shop.getFlag("campaign-codex", "data") || {};
         const linkedNPCUuids = shopData.linkedNPCs || [];
         
-        for (const npcUuid of linkedNPCUuids) {
-          try {
-            const npcJournal = await fromUuid(npcUuid);
-            if (!npcJournal) continue;
-            
-            if (!npcMap.has(npcJournal.id)) {
-              const npcData = npcJournal.getFlag("campaign-codex", "data") || {};
-              const actor = npcData.linkedActor ? await fromUuid(npcData.linkedActor) : null;
-              const imageData = npcJournal.getFlag("campaign-codex", "image") || actor?.img || "icons/svg/direction.svg";
+        // This inner call will handle cleaning broken NPC links from the SHOP's perspective
+        const linkedNpcs = await this.getLinkedNPCs(shop, linkedNPCUuids);
 
-              npcMap.set(npcJournal.id, {
-                id: npcJournal.id,
-                uuid: npcJournal.uuid,
-                name: npcJournal.name,
-                img: imageData,
-                actor: actor,
-                shops: [shop.name],
-                meta: game.campaignCodex.getActorDisplayMeta(actor),
-                source: 'shop'
-              });
-            } else {
-              const npc = npcMap.get(npcJournal.id);
-              if (!npc.shops.includes(shop.name)) {
-                npc.shops.push(shop.name);
-              }
+        for (const npc of linkedNpcs) {
+          const npcJournal = await fromUuid(npc.uuid);
+          if (!npcJournal) continue;
+
+          if (!npcMap.has(npcJournal.id)) {
+            npcMap.set(npcJournal.id, {
+              ...npc,
+              shops: [shop.name],
+              source: 'shop'
+            });
+          } else {
+            const existingNpc = npcMap.get(npcJournal.id);
+            if (!existingNpc.shops.includes(shop.name)) {
+              existingNpc.shops.push(shop.name);
             }
-          } catch (error) {
-            console.error(`Campaign Codex | Error processing shop NPC ${npcUuid}:`, error);
           }
         }
       } catch (error) {
         console.error(`Campaign Codex | Error processing shop ${shopUuid}:`, error);
+        brokenShopUuids.push(shopUuid);
       }
+    }
+    
+    // Clean up broken shop links from the original document (e.g., the Location)
+    if (brokenShopUuids.length > 0) {
+      document._skipRelationshipUpdates = true;
+      await this.clearBrokenReferences(document, brokenShopUuids, 'linkedShops');
+      delete document._skipRelationshipUpdates;
     }
     
     return Array.from(npcMap.values());
@@ -611,9 +573,9 @@ static async getLinkedRegion(locationDoc) {
   // ===========================================
 
   /**
-   * Get linked shops with location info
+   * Get linked shops with location info (e.g., for an NPC sheet)
    */
-  static async getLinkedShopsWithLocation(shopUuids) {
+  static async getLinkedShopsWithLocation(document, shopUuids) {
     if (!shopUuids || !Array.isArray(shopUuids)) return [];
     
     const shops = [];
@@ -628,11 +590,9 @@ static async getLinkedRegion(locationDoc) {
           continue;
         }
         
-        // Find which location this shop is in
         const shopData = journal.getFlag("campaign-codex", "data") || {};
         const linkedLocationUuid = shopData.linkedLocation;
-        const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
-
+        const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/house.svg";
         let locationName = 'Unknown';
         
         if (linkedLocationUuid) {
@@ -655,13 +615,19 @@ static async getLinkedRegion(locationDoc) {
       }
     }
     
+    if (brokenShopUuids.length > 0) {
+      document._skipRelationshipUpdates = true;
+      await this.clearBrokenReferences(document, brokenShopUuids, 'linkedShops');
+      delete document._skipRelationshipUpdates;
+    }
+    
     return shops;
   }
 
   /**
-   * Get linked shops with NPC count
+   * Get linked shops with NPC count (e.g., for a Location sheet)
    */
-  static async getLinkedShops(shopUuids) {
+  static async getLinkedShops(document, shopUuids) {
     if (!shopUuids || !Array.isArray(shopUuids)) return [];
     
     const shops = [];
@@ -678,7 +644,7 @@ static async getLinkedRegion(locationDoc) {
         
         const shopData = journal.getFlag("campaign-codex", "data") || {};
         const npcCount = (shopData.linkedNPCs || []).length;
-        const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
+        const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/house.svg";
 
         shops.push({
           id: journal.id,
@@ -691,6 +657,12 @@ static async getLinkedRegion(locationDoc) {
         console.error(`Campaign Codex | Error processing shop ${uuid}:`, error);
         brokenShopUuids.push(uuid);
       }
+    }
+    
+    if (brokenShopUuids.length > 0) {
+      document._skipRelationshipUpdates = true;
+      await this.clearBrokenReferences(document, brokenShopUuids, 'linkedShops');
+      delete document._skipRelationshipUpdates;
     }
     
     return shops;
@@ -708,44 +680,35 @@ static async getLinkedRegion(locationDoc) {
       try {
         const location = await fromUuid(locationUuid);
         if (!location) {
-          console.warn(`Campaign Codex | Location not found: ${locationUuid}`);
+          console.warn(`Campaign Codex | Location not found for shop aggregation: ${locationUuid}`);
           continue;
         }
         
         const locationData = location.getFlag("campaign-codex", "data") || {};
-        const linkedShopUuids = locationData.linkedShops || [];
-        
-        for (const shopUuid of linkedShopUuids) {
-          try {
-            const shopJournal = await fromUuid(shopUuid);
-            if (!shopJournal) continue;
-            
-            if (!shopMap.has(shopJournal.id)) {
-              const shopData = shopJournal.getFlag("campaign-codex", "data") || {};
-              const npcCount = (shopData.linkedNPCs || []).length;
-              const inventoryCount = (shopData.inventory || []).length;
-              const imageData = shopJournal.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
+        const shops = await this.getLinkedShops(location, locationData.linkedShops || []);
 
-              shopMap.set(shopJournal.id, {
-                id: shopJournal.id,
-                uuid: shopJournal.uuid,
-                name: shopJournal.name,
-                img: imageData,
-                locations: [location.name],
-                meta: `<span class="entity-stat">${npcCount} NPCs</span> <span class="entity-stat">${inventoryCount} Items</span>`
-              });
-            } else {
-              const shop = shopMap.get(shopJournal.id);
-              if (!shop.locations.includes(location.name)) {
-                shop.locations.push(location.name);
-              }
+        for (const shop of shops) {
+          const shopJournal = await fromUuid(shop.uuid);
+          if (!shopJournal) continue;
+          
+          const shopData = shopJournal.getFlag("campaign-codex", "data") || {};
+          const inventoryCount = (shopData.inventory || []).length;
+
+          if (!shopMap.has(shop.id)) {
+            shopMap.set(shop.id, {
+              ...shop,
+              locations: [location.name],
+              meta: `${shop.meta} <span class="entity-stat">${inventoryCount} Items</span>`
+            });
+          } else {
+            const existingShop = shopMap.get(shop.id);
+            if (!existingShop.locations.includes(location.name)) {
+              existingShop.locations.push(location.name);
             }
-          } catch (error) {
-            console.error(`Campaign Codex | Error processing shop ${shopUuid}:`, error);
           }
         }
       } catch (error) {
-        console.error(`Campaign Codex | Error processing location ${locationUuid}:`, error);
+        console.error(`Campaign Codex | Error processing location ${locationUuid} for shop aggregation:`, error);
       }
     }
     
@@ -759,64 +722,63 @@ static async getLinkedRegion(locationDoc) {
   /**
    * Get shop inventory with pricing
    */
-static async getInventory(document, inventoryData) {
-  if (!inventoryData || !Array.isArray(inventoryData)) return [];
-  
-  const inventory = [];
-  const brokenItemUuids = [];
-  
-  for (const itemData of inventoryData) {
-    try {
-      const item = await fromUuid(itemData.itemUuid);
-      if (!item) {
-        console.warn(`Campaign Codex | Inventory item not found: ${itemData.itemUuid}`);
-        brokenItemUuids.push(itemData.itemUuid);
-        continue;
-      }
-      
-      const basePrice = item.system.price ? item.system.price.value : 0;
-      const currency = item.system.price ? item.system.price.denomination : "gp";
-      const markup = document.getFlag("campaign-codex", "data.markup") || 1.0;
-      const finalPrice = itemData.customPrice || Math.round(basePrice * markup);
-      
-      inventory.push({
-        itemId: item.id,
-        itemUuid: item.uuid,
-        name: item.name,
-        img: item.img,
-        basePrice: basePrice,
-        finalPrice: finalPrice,
-        currency: currency,
-        quantity: itemData.quantity || 1,
-        weight: item.system.weight || 0
-      });
-    } catch (error) {
-      console.error(`Campaign Codex | Error processing inventory item:`, error);
-      brokenItemUuids.push(itemData.itemUuid);
-    }
-  }
-  
-  // Clean up broken item references if any found
-  if (brokenItemUuids.length > 0) {
-    try {
-      const currentData = document.getFlag("campaign-codex", "data") || {};
-      const cleanedInventory = (currentData.inventory || []).filter(item => 
-        !brokenItemUuids.includes(item.itemUuid)
-      );
-      
-      if (cleanedInventory.length !== (currentData.inventory || []).length) {
-        currentData.inventory = cleanedInventory;
-        await document.setFlag("campaign-codex", "data", currentData);
+  static async getInventory(document, inventoryData) {
+    if (!inventoryData || !Array.isArray(inventoryData)) return [];
+    
+    const inventory = [];
+    const brokenItemUuids = [];
+    
+    for (const itemData of inventoryData) {
+      try {
+        const item = await fromUuid(itemData.itemUuid);
+        if (!item) {
+          console.warn(`Campaign Codex | Inventory item not found: ${itemData.itemUuid}`);
+          brokenItemUuids.push(itemData.itemUuid);
+          continue;
+        }
         
-        const removedCount = (currentData.inventory || []).length - cleanedInventory.length;
-        ui.notifications.warn(`Removed ${removedCount} broken inventory items from ${document.name}`);
+        const basePrice = item.system.price?.value || 0;
+        const currency = item.system.price?.denomination || "gp";
+        const markup = document.getFlag("campaign-codex", "data.markup") || 1.0;
+        const finalPrice = itemData.customPrice ?? Math.round(basePrice * markup);
+        
+        inventory.push({
+          itemId: item.id,
+          itemUuid: item.uuid,
+          name: item.name,
+          img: item.img,
+          basePrice: basePrice,
+          finalPrice: finalPrice,
+          currency: currency,
+          quantity: itemData.quantity || 1,
+          weight: item.system.weight || 0
+        });
+      } catch (error) {
+        console.error(`Campaign Codex | Error processing inventory item:`, error);
+        brokenItemUuids.push(itemData.itemUuid);
       }
-    } catch (error) {
-      console.error(`Campaign Codex | Error cleaning broken inventory items:`, error);
     }
+    
+    // Clean up broken item references if any found.
+    // This uses custom logic because the inventory is an array of objects, not UUID strings.
+    if (brokenItemUuids.length > 0) {
+      try {
+        const currentData = document.getFlag("campaign-codex", "data") || {};
+        const currentInventory = currentData.inventory || [];
+        const cleanedInventory = currentInventory.filter(item => !brokenItemUuids.includes(item.itemUuid));
+        
+        if (cleanedInventory.length !== currentInventory.length) {
+          currentData.inventory = cleanedInventory;
+          await document.setFlag("campaign-codex", "data", currentData);
+          
+          const removedCount = currentInventory.length - cleanedInventory.length;
+          ui.notifications.warn(`Removed ${removedCount} broken inventory items from ${document.name}`);
+        }
+      } catch (error) {
+        console.error(`Campaign Codex | Error cleaning broken inventory items:`, error);
+      }
+    }
+    
+    return inventory;
   }
-  
-  return inventory;
-}
-
 }

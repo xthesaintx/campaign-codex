@@ -14,7 +14,23 @@ export class NPCDropper {
       return;
     }
 
-    const npcsWithActors = npcs.filter(npc => npc.actor);
+    // Filter NPCs that have linked actors AND check for broken links
+    const npcsWithActors = [];
+    
+    for (const npc of npcs) {
+      if (!npc.actor) {
+        console.warn(`Campaign Codex | Skipping NPC ${npc.name} - no linked actor`);
+        continue;
+      }
+      
+      // Prepare NPC data with journal reference for flag tracking
+      const npcData = {
+        ...npc,
+        journal: await this._findNPCJournal(npc)
+      };
+      
+      npcsWithActors.push(npcData);
+    }
     
     if (npcsWithActors.length === 0) {
       ui.notifications.warn("No NPCs with linked actors found to drop!");
@@ -23,6 +39,23 @@ export class NPCDropper {
 
     // Show selection dialog
     return this._showDropToMapDialog(npcsWithActors, options);
+  }
+
+  /**
+   * Find the NPC journal for a given NPC object
+   * @param {Object} npc - NPC object
+   * @returns {Promise<JournalEntry|null>} The NPC journal or null
+   */
+  static async _findNPCJournal(npc) {
+    if (!npc.actor) return null;
+    
+    // Find NPC journal that links to this actor
+    const npcJournals = game.journal.filter(j => {
+      const npcData = j.getFlag("campaign-codex", "data");
+      return npcData && npcData.linkedActor === npc.actor.uuid && j.getFlag("campaign-codex", "type") === "npc";
+    });
+    
+    return npcJournals[0] || null;
   }
 
   /**
@@ -37,10 +70,11 @@ export class NPCDropper {
         <div class="npc-selection" style="max-height: 300px; overflow-y: auto;">
           ${npcs.map(npc => `
             <label style="display: flex; align-items: center; margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 4px;">
-              <input type="checkbox" name="selected-npcs" value="${npc.actor.uuid}" checked style="margin-right: 8px;">
+              <input type="checkbox" name="selected-npcs" value="${npc.uuid || npc.id}" checked style="margin-right: 8px;">
               <img src="${npc.img}" alt="${npc.name}" style="width: 32px; height: 32px; border-radius: 4px; margin-right: 8px;">
               <span style="font-weight: 600;">${npc.name}</span>
               ${npc.actor.type === 'character' ? '<span style="margin-left: 8px; font-size: 10px; background: #28a745; color: white; padding: 2px 6px; border-radius: 10px;">PLAYER</span>' : ''}
+              ${npc.actor.pack ? '<span style="margin-left: 8px; font-size: 10px; background: #6c757d; color: white; padding: 2px 6px; border-radius: 10px;">COMPENDIUM</span>' : ''}
             </label>
           `).join('')}
         </div>
@@ -77,15 +111,20 @@ export class NPCDropper {
             icon: '<i class="fas fa-map"></i>',
             label: "Start Placing",
             callback: async (html) => {
-              const selectedUuids = [];
+              const selectedNPCIds = [];
               html.find('input[name="selected-npcs"]:checked').each(function() {
-                selectedUuids.push(this.value);
+                selectedNPCIds.push(this.value);
               });
               
               const startHidden = html.find('input[name="start-hidden"]').prop('checked');
               
-              if (selectedUuids.length > 0) {
-                const result = await this._startTokenPlacement(selectedUuids, {
+              if (selectedNPCIds.length > 0) {
+                // Filter NPCs to only selected ones
+                const selectedNPCs = npcs.filter(npc => 
+                  selectedNPCIds.includes(npc.uuid || npc.id)
+                );
+                
+                const result = await this._startTokenPlacement(selectedNPCs, {
                   startHidden,
                   ...options
                 });
@@ -109,38 +148,31 @@ export class NPCDropper {
 
   /**
    * Starts the token placement workflow using Foundry's TokenPlacement system
-   * @param {Array} actorUuids - UUIDs of actors to place
+   * @param {Array} npcData - Array of NPC objects with actor and journal info
    * @param {Object} options - Placement options
    */
-  static async _startTokenPlacement(actorUuids, options = {}) {
+  static async _startTokenPlacement(npcData, options = {}) {
     const { startHidden = false } = options;
     
     // Prepare actors (import from compendiums if needed)
     const preparedActors = [];
     const droppedCount = { success: 0, failed: 0, imported: 0 };
     
-    ui.notifications.info(`Preparing ${actorUuids.length} NPCs for placement...`);
+    ui.notifications.info(`Preparing ${npcData.length} NPCs for placement...`);
     
-    for (const actorUuid of actorUuids) {
+    for (const npcInfo of npcData) {
       try {
-        let actor = await fromUuid(actorUuid);
-        
-        // Always import from compendium if needed
-        if (actor && actor.pack) {
-          console.log(`Campaign Codex | Importing actor ${actor.name} from compendium`);
-          const importedActors = await Actor.createDocuments([actor.toObject()]);
-          actor = importedActors[0];
-          droppedCount.imported++;
-        }
+        let actor = await this._prepareActorForDrop(npcInfo);
         
         if (actor) {
           preparedActors.push(actor);
+          droppedCount.success++;
         } else {
-          console.warn(`Campaign Codex | Could not resolve actor: ${actorUuid}`);
+          console.warn(`Campaign Codex | Could not prepare actor for NPC: ${npcInfo.name}`);
           droppedCount.failed++;
         }
       } catch (error) {
-        console.error(`Campaign Codex | Error preparing actor ${actorUuid}:`, error);
+        console.error(`Campaign Codex | Error preparing actor for NPC ${npcInfo.name}:`, error);
         droppedCount.failed++;
       }
     }
@@ -152,6 +184,56 @@ export class NPCDropper {
     
     // Use Foundry's TokenPlacement system
     return this._useTokenPlacement(preparedActors, { startHidden, ...options }, droppedCount);
+  }
+
+  /**
+   * Prepare an actor for dropping, handling compendium imports and tracking
+   * @param {Object} npcInfo - NPC info object with actor and journal references
+   * @returns {Promise<Actor|null>} The prepared actor or null if failed
+   */
+  static async _prepareActorForDrop(npcInfo) {
+    const { actor: originalActor, journal } = npcInfo;
+    
+    if (!originalActor) {
+      console.warn(`Campaign Codex | NPC ${npcInfo.name} has no linked actor`);
+      return null;
+    }
+
+    // Check if this is a compendium actor
+    if (originalActor.pack) {
+      // Check if we already have a dropped token UUID for this NPC
+      const droppedTokenUuid = journal?.getFlag?.("campaign-codex", "droppedTokenUuid");
+      
+      if (droppedTokenUuid) {
+        // Try to find the existing imported actor
+        const existingActor = await fromUuid(droppedTokenUuid);
+        if (existingActor && !existingActor.pack) {
+          console.log(`Campaign Codex | Using existing imported actor: ${existingActor.name}`);
+          return existingActor;
+        } else {
+          // Clear the broken flag
+          if (journal) {
+            await journal.unsetFlag("campaign-codex", "droppedTokenUuid");
+          }
+        }
+      }
+      
+      // Import the actor from compendium
+      console.log(`Campaign Codex | Importing actor ${originalActor.name} from compendium`);
+      const importedActors = await Actor.createDocuments([originalActor.toObject()]);
+      const importedActor = importedActors[0];
+      
+      // Set the droppedTokenUuid flag on the NPC journal
+      if (journal && importedActor) {
+        await journal.setFlag("campaign-codex", "droppedTokenUuid", importedActor.uuid);
+        console.log(`Campaign Codex | Set droppedTokenUuid flag for ${journal.name}: ${importedActor.uuid}`);
+      }
+      
+      return importedActor;
+    }
+    
+    // World actor - use directly
+    return originalActor;
   }
 
   /**
@@ -261,16 +343,30 @@ export class NPCDropper {
       return;
     }
 
-    const npcsWithActors = npcs.filter(npc => npc.actor);
+    // Filter and prepare NPCs with actors
+    const npcsWithActors = [];
+    
+    for (const npc of npcs) {
+      if (!npc.actor) {
+        console.warn(`Campaign Codex | Skipping NPC ${npc.name} - no linked actor`);
+        continue;
+      }
+      
+      // Prepare NPC data with journal reference for flag tracking
+      const npcData = {
+        ...npc,
+        journal: await this._findNPCJournal(npc)
+      };
+      
+      npcsWithActors.push(npcData);
+    }
     
     if (npcsWithActors.length === 0) {
       ui.notifications.warn("No NPCs with linked actors found to drop!");
       return;
     }
 
-    const actorUuids = npcsWithActors.map(npc => npc.actor.uuid);
-    
-    return this._startTokenPlacement(actorUuids, {
+    return this._startTokenPlacement(npcsWithActors, {
       startHidden: false,
       ...options
     });

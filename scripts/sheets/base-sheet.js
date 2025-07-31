@@ -53,7 +53,7 @@ async getData() {
     this._activateSheetSpecificListeners(html);
     html.find('.cc-edit-description').click(event => this._onEditDescription(event, 'description'));
     html.find('.cc-edit-notes').click(event => this._onEditDescription(event, 'notes'));
-    html.find('.drop-npcs-to-map, .drop-to-map-btn, .drop-direct-npcs-btn').click(this._onDropNPCsToMapClick.bind(this));
+    html.find('.npcs-to-map-button').click(this._onDropNPCsToMapClick.bind(this));
 
   }
 

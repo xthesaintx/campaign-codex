@@ -23,8 +23,8 @@ export class NPCSheet extends CampaignCodexBaseSheet {
     // Get linked documents with complete location discovery
     data.linkedActor = npcData.linkedActor ? await CampaignCodexLinkers.getLinkedActor(npcData.linkedActor) : null;
     data.allLocations = await CampaignCodexLinkers.getAllLocations(this.document, npcData.linkedLocations || []);
-    data.linkedShops = await CampaignCodexLinkers.getLinkedShopsWithLocation(npcData.linkedShops || []);
-    data.associates = await CampaignCodexLinkers.getAssociates(npcData.associates || []);
+    data.linkedShops = await CampaignCodexLinkers.getLinkedShopsWithLocation(this.document,npcData.linkedShops || []);
+    data.associates = await CampaignCodexLinkers.getAssociates(this.document,npcData.associates || []);
 
 
     // Sheet configuration
@@ -115,7 +115,19 @@ export class NPCSheet extends CampaignCodexBaseSheet {
 
   _generateInfoTab(data) {
     let actorSection = '';
-    
+    let dropToMapBtn = '';
+
+
+    dropToMapBtn = (canvas.scene && data.linkedActor) ? `
+    <button type="button" class="refresh-btn npcs-to-map-button" title="Drop to current scene">
+      <i class="fas fa-map"></i>
+      Drop NPC
+    </button>
+  ` : '';
+
+
+
+
     if (data.linkedActor) {
       actorSection = `
         <div class="form-section">
@@ -123,6 +135,7 @@ export class NPCSheet extends CampaignCodexBaseSheet {
           ${TemplateComponents.actorLinkCard(data.linkedActor)}
         </div>
       `;
+
     } else {
       actorSection = `
         <div class="form-section">
@@ -133,7 +146,7 @@ export class NPCSheet extends CampaignCodexBaseSheet {
     }
     
     return `
-      ${TemplateComponents.contentHeader('fas fas fa-info-circle', 'Information')}
+      ${TemplateComponents.contentHeader('fas fas fa-info-circle', 'Information', dropToMapBtn)}
       ${actorSection}
       ${TemplateComponents.richTextSection('Description', 'fas fa-align-left', data.sheetData.enrichedDescription, 'description')}
     `;
@@ -359,4 +372,45 @@ for (const shopUuid of linkedShops) { // Change parameter name from shopId to sh
   getSheetType() {
     return "npc";
   }
+async _onDropNPCsToMapClick(event) {
+  event.preventDefault();
+  
+  // Get the current NPC's data
+  const npcData = this.document.getFlag("campaign-codex", "data") || {};
+  
+  // Check if this NPC has a linked actor
+  if (!npcData.linkedActor) {
+    ui.notifications.warn("This NPC has no linked actor to drop!");
+    return;
+  }
+  
+  try {
+    // Get the linked actor
+    const linkedActor = await fromUuid(npcData.linkedActor);
+    if (!linkedActor) {
+      ui.notifications.warn("Linked actor not found!");
+      return;
+    }
+    
+    // Create NPC object for dropping (matching the expected format)
+    const npcForDrop = {
+      id: this.document.id,
+      uuid: this.document.uuid,
+      name: this.document.name,
+      img: this.document.getFlag("campaign-codex", "image") || linkedActor.img || "icons/svg/mystery-man.svg",
+      actor: linkedActor
+    };
+    
+    // Drop this single NPC
+    await this._onDropNPCsToMap([npcForDrop], { 
+      title: `Drop ${this.document.name} to Map`,
+      showHiddenToggle: true
+    });
+    
+  } catch (error) {
+    console.error('Campaign Codex | Error dropping NPC to map:', error);
+    ui.notifications.error("Failed to drop NPC to map!");
+  }
+}
+
 }
