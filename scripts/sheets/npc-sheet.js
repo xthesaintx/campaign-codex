@@ -31,8 +31,8 @@ export class NPCSheet extends CampaignCodexBaseSheet {
     data.sheetType = "npc";
     data.sheetTypeLabel = data.linkedActor?.type === 'character' ? "Player Journal" : "NPC Journal";
     // data.sheetTypeLabel = "NPC Journal";
-    data.defaultImage = "icons/svg/mystery-man.svg";
-    data.customImage = this.document.getFlag("campaign-codex", "image") || data.linkedActor?.img || "icons/svg/mystery-man.svg";
+    data.defaultImage = TemplateComponents.getAsset('image','npc');
+    data.customImage = this.document.getFlag("campaign-codex", "image") || data.linkedActor?.img || TemplateComponents.getAsset('image','npc');
     
     // Navigation tabs
     data.tabs = [
@@ -62,12 +62,22 @@ export class NPCSheet extends CampaignCodexBaseSheet {
       { icon: 'fas fa-users', value: data.associates.length, label: 'ASSOCIATES', color: '#fd7e14' }
     ];
     
-    // Quick links - use all locations
-    data.quickLinks = [
-      ...data.allLocations.map(loc => ({ ...loc, type: 'location' })),
-      ...data.linkedShops.map(shop => ({ ...shop, type: 'shop' })),
-      ...data.associates.map(assoc => ({ ...assoc, type: 'npc' }))
-    ];
+    // // Quick links - use all locations
+    // data.quickLinks = [
+    //   ...data.allLocations.map(loc => ({ ...loc, type: 'location' })),
+    //   ...data.linkedShops.map(shop => ({ ...shop, type: 'shop' })),
+    //   ...data.associates.map(assoc => ({ ...assoc, type: 'npc' }))
+    // ];
+      const sources = [
+    { data: data.allLocations, type: 'location' },
+    { data: data.linkedShops, type: 'shop' },
+    { data: data.associates, type: 'npc' }
+  ];
+
+  // Generate the de-duplicated quick links
+  data.quickLinks = CampaignCodexLinkers.createQuickLinks(sources);
+
+
     
     // Custom header content (actor stats)
     if (data.linkedActor) {
@@ -139,7 +149,6 @@ export class NPCSheet extends CampaignCodexBaseSheet {
     } else {
       actorSection = `
         <div class="form-section">
-          <h3><i class="fas fa-link"></i> Link Actor</h3>
           ${TemplateComponents.dropZone('actor', 'fas fa-user-plus', 'Link Actor', 'Drag an NPC actor here to link')}
         </div>
       `;

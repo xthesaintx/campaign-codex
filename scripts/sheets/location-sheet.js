@@ -46,10 +46,28 @@ export class LocationSheet extends CampaignCodexBaseSheet {
     ];
     
     // Quick links - use all NPCs
-    data.quickLinks = [
+    // data.quickLinks = [
+    //   ...data.allNPCs.map(npc => ({ ...npc, type: 'npc' })),
+    //   ...data.linkedShops.map(shop => ({ ...shop, type: 'shop' }))
+    // ];
+
+  const sources = [
+    { data: data.allNPCs, type: 'location' },
+    { data: data.linkedShops, type: 'shop' },
+    // { data: data.associates, type: 'npc' }
+  ];
+
+  // Generate the de-duplicated quick links
+  data.quickLinks = CampaignCodexLinkers.createQuickLinks(sources);
+
+
+
+    const allItems = [
       ...data.allNPCs.map(npc => ({ ...npc, type: 'npc' })),
       ...data.linkedShops.map(shop => ({ ...shop, type: 'shop' }))
     ];
+
+
     
     // Custom header content (region info)
     if (data.linkedRegion) {
@@ -96,16 +114,13 @@ export class LocationSheet extends CampaignCodexBaseSheet {
     if (data.linkedRegion) {
       locationSection = `
         <div class="form-section">
-          <h3><i class="fas fa-map-marker-alt"></i> Location</h3>
+          <h3><i class="${TemplateComponents.getAsset('icon','region')}"></i> Region</h3>
           <div class="linked-actor-card">
             <div class="actor-image">
               <img src="${data.linkedRegion.img}" alt="${data.linkedRegion.name}">
             </div>
             <div class="actor-content">
               <h4 class="actor-name">${data.linkedRegion.name}</h4>
-              <div class="actor-details">
-                <span class="actor-race-class">Location</span>
-              </div>
             </div>
             <div class="actor-actions">
               <button type="button" class="action-btn open-location" data-location-uuid="${data.linkedRegion.uuid}" title="Open Location">
@@ -120,8 +135,7 @@ export class LocationSheet extends CampaignCodexBaseSheet {
       `;
     } else {
       locationSection = `
-        <div class="form-section">
-        <h3><i class="fas fa-globe"></i> Region</h3>
+      <div class="form-section">
         ${TemplateComponents.dropZone('region', 'fas fa-globe', 'Set Region', 'Drag a region journal here to add this location to a region')}
       </div>`;
     }
@@ -170,8 +184,7 @@ _generateNPCsTab(data) {
         <h3 style="color: var(--cc-main-text); font-family: var(--cc-font-heading); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; border-bottom: 1px solid var(--cc-border-light); padding-bottom: 8px;">
           <i class="fas fa-book-open" style="color: var(--cc-accent); margin-right: 8px;"></i>
           Shop NPCs (${data.shopNPCs.length})
-          <span style="margin-left: 8px; font-size: 10px; color: #666; font-weight: normal;">(Auto-populated)</span>
-        </h3>
+         </h3>
         ${TemplateComponents.infoBanner('NPCs automatically populated from entries at this location. Manage them through their respective shops.')}
         ${TemplateComponents.entityGrid(data.shopNPCs, 'npc', true)}
       </div>

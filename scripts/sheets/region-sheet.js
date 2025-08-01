@@ -57,11 +57,21 @@ export class RegionSheet extends CampaignCodexBaseSheet {
       { icon: 'fas fa-book-open', value: data.allShops.length, label: 'ENTRIES', color: '#6f42c1' }
     ];
     
-    // Quick links
-    data.quickLinks = [
-      ...data.linkedLocations.map(loc => ({ ...loc, type: 'location' }))
-    ];
+    // // Quick links
+    // data.quickLinks = [
+    //   ...data.linkedLocations.map(loc => ({ ...loc, type: 'location' }))
+    // ];
     
+          const sources = [
+    { data: data.linkedLocations, type: 'location' },
+  ];
+
+  // Generate the de-duplicated quick links
+  data.quickLinks = CampaignCodexLinkers.createQuickLinks(sources);
+
+
+
+
     // Tab panels
     data.tabPanels = [
       {

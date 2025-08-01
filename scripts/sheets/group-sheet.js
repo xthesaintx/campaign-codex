@@ -128,7 +128,7 @@ async _handleDrop(data, event) {
 
   async _onDrop(event) {
     event.preventDefault();
-        console.log(event);
+        // console.log(event);
     if (this._dropping) return;
     this._dropping = true;
     
@@ -156,7 +156,7 @@ async _handleDrop(data, event) {
 
 _onDragOver(event) {
   event.preventDefault();
-          console.log(event);
+          // console.log(event);
   event.dataTransfer.dropEffect = "link";
 }
 
@@ -253,7 +253,7 @@ _onDragOver(event) {
           <div class="tree-child-items">
             ${items.map(item => `
               <div class="tree-child-item" data-uuid="${item.uuid}" data-parent="${parent.uuid}">
-                <img src="${TemplateComponents.getAsset('image', 'item', item.img)}" class="child-icon" alt="${item.name}">
+                <img src="${TemplateComponents.getAsset('image', item.type, item.img)}" class="child-icon" alt="${item.name}">
                 <span class="child-label">${item.name}</span>
                 <div class="child-actions">
                   <button type="button" class="btn-open-sheet" data-uuid="${item.uuid}" title="Open Sheet">
@@ -277,11 +277,13 @@ _onDragOver(event) {
     const children = [];
     
     switch (member.type) {
+      case 'group': // Add this case
+      children.push(...(nestedData.membersByGroup[member.uuid] || []));
+      break;
       case 'region':
         // Add locations, which will have their own children
         children.push(...(nestedData.locationsByRegion[member.uuid] || []));
         break;
-        
       case 'location':
         // Add shops and NPCs
         children.push(...(nestedData.shopsByLocation[member.uuid] || []));
@@ -306,22 +308,19 @@ _onDragOver(event) {
     const stats = this._calculateGroupStats(data.nestedData);
     
     return `
-      ${TemplateComponents.contentHeader('fas fa-info-circle', 'Group Overview')}
       
       <div class="group-stats-grid">
         <div class="stat-card">
           <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'region')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.regions}</div>
-            <div class="stat-label">Regions</div>
-          </div>
+           </div>
         </div>
         
         <div class="stat-card">
           <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'location')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.locations}</div>
-            <div class="stat-label">Locations</div>
           </div>
         </div>
         
@@ -329,7 +328,6 @@ _onDragOver(event) {
           <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'shop')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.shops}</div>
-            <div class="stat-label">Entries</div>
           </div>
         </div>
         
@@ -337,7 +335,6 @@ _onDragOver(event) {
           <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'npc')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.npcs}</div>
-            <div class="stat-label">NPCs</div>
           </div>
         </div>
         
@@ -345,14 +342,14 @@ _onDragOver(event) {
           <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'item')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.items}</div>
-            <div class="stat-label">Items</div>
           </div>
         </div>
       </div>
       
       ${TemplateComponents.richTextSection('Description', 'fas fa-align-left', data.sheetData.enrichedDescription, 'description')}
-      
        <div class="form-section">
+             <h3><i class="fas fa-link"></i> Add Members</h3>
+
         ${TemplateComponents.dropZone('member', 'fas fa-plus-circle', 'Add Members', 'Drag regions, locations, entries, or NPCs here to add them to this group')}
       </div>
     `;

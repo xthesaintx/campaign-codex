@@ -298,24 +298,58 @@ async createNPCJournal(actor = null, name = null) {
     }
   }
 
-  async linkLocationToShop(locationDoc, shopDoc) {
-    // Prevent self-linking
-    if (locationDoc.uuid === shopDoc.uuid) return;
-    
-    // Add shop to location
-    const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
-    const linkedShops = locationData.linkedShops || [];
-    if (!linkedShops.includes(shopDoc.uuid)) {
-      linkedShops.push(shopDoc.uuid);
-      locationData.linkedShops = linkedShops;
-      await locationDoc.setFlag("campaign-codex", "data", locationData);
-    }
 
-    // Set location for shop (single location per shop)
-    const shopData = shopDoc.getFlag("campaign-codex", "data") || {};
-    shopData.linkedLocation = locationDoc.uuid;
-    await shopDoc.setFlag("campaign-codex", "data", shopData);
+
+async linkLocationToShop(locationDoc, shopDoc) {
+  // Prevent self-linking
+  if (locationDoc.uuid === shopDoc.uuid) return;
+  
+  // Get the shop's current data
+  const shopData = shopDoc.getFlag("campaign-codex", "data") || {};
+  const oldLocation = shopData.linkedLocation;
+  
+  // If the shop already has a location, remove it from that location first
+  if (oldLocation && oldLocation !== locationDoc.uuid) {
+    const oldLocationDoc = await fromUuid(oldLocation);
+    if (oldLocationDoc) {
+      const oldLocationData = oldLocationDoc.getFlag("campaign-codex", "data") || {};
+      const linkedShops = oldLocationData.linkedShops || [];
+      oldLocationData.linkedShops = linkedShops.filter(uuid => uuid !== shopDoc.uuid);
+      await oldLocationDoc.setFlag("campaign-codex", "data", oldLocationData);
+    }
   }
+  
+  // Add shop to new location
+  const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
+  const linkedShops = locationData.linkedShops || [];
+  if (!linkedShops.includes(shopDoc.uuid)) {
+    linkedShops.push(shopDoc.uuid);
+    locationData.linkedShops = linkedShops;
+    await locationDoc.setFlag("campaign-codex", "data", locationData);
+  }
+
+  // Set location for shop (single location per shop)
+  shopData.linkedLocation = locationDoc.uuid;
+  await shopDoc.setFlag("campaign-codex", "data", shopData);
+}
+  // async linkLocationToShop(locationDoc, shopDoc) {
+  //   // Prevent self-linking
+  //   if (locationDoc.uuid === shopDoc.uuid) return;
+    
+  //   // Add shop to location
+  //   const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
+  //   const linkedShops = locationData.linkedShops || [];
+  //   if (!linkedShops.includes(shopDoc.uuid)) {
+  //     linkedShops.push(shopDoc.uuid);
+  //     locationData.linkedShops = linkedShops;
+  //     await locationDoc.setFlag("campaign-codex", "data", locationData);
+  //   }
+
+  //   // Set location for shop (single location per shop)
+  //   const shopData = shopDoc.getFlag("campaign-codex", "data") || {};
+  //   shopData.linkedLocation = locationDoc.uuid;
+  //   await shopDoc.setFlag("campaign-codex", "data", shopData);
+  // }
 
   async linkShopToNPC(shopDoc, npcDoc) {
     // Prevent self-linking
@@ -551,76 +585,157 @@ async addItemToShop(shopDoc, itemDoc, quantity = 1) {
     }
   }
 
-  async _handleShopUpdates(shopDoc, changes) {
-    const oldData = foundry.utils.getProperty(shopDoc._source, 'flags.campaign-codex.data') || {};
-    const newData = foundry.utils.getProperty(shopDoc, 'flags.campaign-codex.data') || {};
 
-    // Handle NPC changes
-    if (changes.linkedNPCs) {
-      const oldNPCs = oldData.linkedNPCs || [];
-      const newNPCs = newData.linkedNPCs || [];
-      
-      // Remove from old NPCs
-      for (const npcUuid of oldNPCs) {
-        if (!newNPCs.includes(npcUuid)) {
-          const npcDoc = await fromUuid(npcUuid);
-          if (npcDoc) {
-            const npcData = npcDoc.getFlag("campaign-codex", "data") || {};
-            const linkedShops = npcData.linkedShops || [];
-            npcData.linkedShops = linkedShops.filter(uuid => uuid !== shopDoc.uuid);
-            await npcDoc.setFlag("campaign-codex", "data", npcData);
-          }
-        }
-      }
-      
-      // Add to new NPCs
-      for (const npcUuid of newNPCs) {
-        if (!oldNPCs.includes(npcUuid)) {
-          const npcDoc = await fromUuid(npcUuid);
-          if (npcDoc) {
-            const npcData = npcDoc.getFlag("campaign-codex", "data") || {};
-            const linkedShops = npcData.linkedShops || [];
-            if (!linkedShops.includes(shopDoc.uuid)) {
-              linkedShops.push(shopDoc.uuid);
-              npcData.linkedShops = linkedShops;
-              await npcDoc.setFlag("campaign-codex", "data", npcData);
-            }
-          }
+
+async _handleShopUpdates(shopDoc, changes) {
+  const oldData = foundry.utils.getProperty(shopDoc._source, 'flags.campaign-codex.data') || {};
+  const newData = foundry.utils.getProperty(shopDoc, 'flags.campaign-codex.data') || {};
+
+  // Handle NPC changes
+  if (changes.linkedNPCs) {
+    const oldNPCs = oldData.linkedNPCs || [];
+    const newNPCs = newData.linkedNPCs || [];
+    
+    // Remove from old NPCs
+    for (const npcUuid of oldNPCs) {
+      if (!newNPCs.includes(npcUuid)) {
+        const npcDoc = await fromUuid(npcUuid);
+        if (npcDoc) {
+          const npcData = npcDoc.getFlag("campaign-codex", "data") || {};
+          const linkedShops = npcData.linkedShops || [];
+          npcData.linkedShops = linkedShops.filter(uuid => uuid !== shopDoc.uuid);
+          await npcDoc.setFlag("campaign-codex", "data", npcData);
         }
       }
     }
-
-    // Handle location changes
-    if (changes.linkedLocation !== undefined) {
-      const oldLocation = oldData.linkedLocation;
-      const newLocation = newData.linkedLocation;
-      
-      // Remove from old location
-      if (oldLocation && oldLocation !== newLocation) {
-        const locationDoc = await fromUuid(oldLocation);
-        if (locationDoc) {
-          const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
-          const linkedShops = locationData.linkedShops || [];
-          locationData.linkedShops = linkedShops.filter(uuid => uuid !== shopDoc.uuid);
-          await locationDoc.setFlag("campaign-codex", "data", locationData);
-        }
-      }
-      
-      // Add to new location
-      if (newLocation && newLocation !== oldLocation) {
-        const locationDoc = await fromUuid(newLocation);
-        if (locationDoc) {
-          const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
-          const linkedShops = locationData.linkedShops || [];
+    
+    // Add to new NPCs
+    for (const npcUuid of newNPCs) {
+      if (!oldNPCs.includes(npcUuid)) {
+        const npcDoc = await fromUuid(npcUuid);
+        if (npcDoc) {
+          const npcData = npcDoc.getFlag("campaign-codex", "data") || {};
+          const linkedShops = npcData.linkedShops || [];
           if (!linkedShops.includes(shopDoc.uuid)) {
             linkedShops.push(shopDoc.uuid);
-            locationData.linkedShops = linkedShops;
-            await locationDoc.setFlag("campaign-codex", "data", locationData);
+            npcData.linkedShops = linkedShops;
+            await npcDoc.setFlag("campaign-codex", "data", npcData);
           }
         }
       }
     }
   }
+
+  // Handle location changes - THIS IS THE FIX
+  if (changes.linkedLocation !== undefined) {
+    const oldLocation = oldData.linkedLocation;
+    const newLocation = newData.linkedLocation;
+    
+    // Remove from old location
+    if (oldLocation && oldLocation !== newLocation) {
+      const locationDoc = await fromUuid(oldLocation);
+      if (locationDoc) {
+        const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
+        const linkedShops = locationData.linkedShops || [];
+        locationData.linkedShops = linkedShops.filter(uuid => uuid !== shopDoc.uuid);
+        await locationDoc.setFlag("campaign-codex", "data", locationData);
+        
+        // Refresh the old location sheet if it's open
+        for (const app of Object.values(ui.windows)) {
+          if (app.document && app.document.uuid === oldLocation) {
+            app.render(false);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Add to new location
+    if (newLocation && newLocation !== oldLocation) {
+      const locationDoc = await fromUuid(newLocation);
+      if (locationDoc) {
+        const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
+        const linkedShops = locationData.linkedShops || [];
+        if (!linkedShops.includes(shopDoc.uuid)) {
+          linkedShops.push(shopDoc.uuid);
+          locationData.linkedShops = linkedShops;
+          await locationDoc.setFlag("campaign-codex", "data", locationData);
+        }
+      }
+    }
+  }
+}
+
+  // async _handleShopUpdates(shopDoc, changes) {
+  //   const oldData = foundry.utils.getProperty(shopDoc._source, 'flags.campaign-codex.data') || {};
+  //   const newData = foundry.utils.getProperty(shopDoc, 'flags.campaign-codex.data') || {};
+
+  //   // Handle NPC changes
+  //   if (changes.linkedNPCs) {
+  //     const oldNPCs = oldData.linkedNPCs || [];
+  //     const newNPCs = newData.linkedNPCs || [];
+      
+  //     // Remove from old NPCs
+  //     for (const npcUuid of oldNPCs) {
+  //       if (!newNPCs.includes(npcUuid)) {
+  //         const npcDoc = await fromUuid(npcUuid);
+  //         if (npcDoc) {
+  //           const npcData = npcDoc.getFlag("campaign-codex", "data") || {};
+  //           const linkedShops = npcData.linkedShops || [];
+  //           npcData.linkedShops = linkedShops.filter(uuid => uuid !== shopDoc.uuid);
+  //           await npcDoc.setFlag("campaign-codex", "data", npcData);
+  //         }
+  //       }
+  //     }
+      
+  //     // Add to new NPCs
+  //     for (const npcUuid of newNPCs) {
+  //       if (!oldNPCs.includes(npcUuid)) {
+  //         const npcDoc = await fromUuid(npcUuid);
+  //         if (npcDoc) {
+  //           const npcData = npcDoc.getFlag("campaign-codex", "data") || {};
+  //           const linkedShops = npcData.linkedShops || [];
+  //           if (!linkedShops.includes(shopDoc.uuid)) {
+  //             linkedShops.push(shopDoc.uuid);
+  //             npcData.linkedShops = linkedShops;
+  //             await npcDoc.setFlag("campaign-codex", "data", npcData);
+  //           }
+  //         }
+  //       }
+  //     }
+  //   }
+
+  //   // Handle location changes
+  //   if (changes.linkedLocation !== undefined) {
+  //     const oldLocation = oldData.linkedLocation;
+  //     const newLocation = newData.linkedLocation;
+      
+  //     // Remove from old location
+  //     if (oldLocation && oldLocation !== newLocation) {
+  //       const locationDoc = await fromUuid(oldLocation);
+  //       if (locationDoc) {
+  //         const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
+  //         const linkedShops = locationData.linkedShops || [];
+  //         locationData.linkedShops = linkedShops.filter(uuid => uuid !== shopDoc.uuid);
+  //         await locationDoc.setFlag("campaign-codex", "data", locationData);
+  //       }
+  //     }
+      
+  //     // Add to new location
+  //     if (newLocation && newLocation !== oldLocation) {
+  //       const locationDoc = await fromUuid(newLocation);
+  //       if (locationDoc) {
+  //         const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
+  //         const linkedShops = locationData.linkedShops || [];
+  //         if (!linkedShops.includes(shopDoc.uuid)) {
+  //           linkedShops.push(shopDoc.uuid);
+  //           locationData.linkedShops = linkedShops;
+  //           await locationDoc.setFlag("campaign-codex", "data", locationData);
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
 
   async _handleNPCUpdates(npcDoc, changes) {
     const oldData = foundry.utils.getProperty(npcDoc._source, 'flags.campaign-codex.data') || {};

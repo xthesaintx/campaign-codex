@@ -73,13 +73,25 @@ static getAsset(assetType, entityType, currentImg = null) {
     return `
       <div class="drop-zone" data-drop-type="${type}">
         <div class="drop-content">
-          <i class="${icon}"></i>
-          <h3>${title}</h3>
+          <h3><i class="${icon}"></i> ${title}</h3>
           <p>${description}</p>
         </div>
       </div>
     `;
   }
+
+  // // Drop zone component
+  // static dropZone(type, icon, title, description) {
+  //   return `
+  //     <div class="drop-zone" data-drop-type="${type}">
+  //       <div class="drop-content">
+  //         <i class="${icon}"></i>
+  //         <h3>${title}</h3>
+  //         <p>${description}</p>
+  //       </div>
+  //     </div>
+  //   `;
+  // }
 
   // Entity grid component
   static entityGrid(entities, type, showActorButton = false) {

@@ -1,3 +1,5 @@
+import { TemplateComponents } from './template-components.js';
+
 // Campaign Codex Linkers - Handles all document linking and relationship resolution
 export class CampaignCodexLinkers {
 
@@ -29,6 +31,39 @@ export class CampaignCodexLinkers {
     }
   }
 
+// 
+  // QUICK LINKS
+  // 
+
+  static createQuickLinks(sources, uniqueKey = 'id') {
+    // Return an empty array if sources is invalid
+    if (!sources || !Array.isArray(sources)) {
+      return [];
+    }
+
+    // 1. Combine all items from all sources into a single array
+    const allItems = sources.flatMap(source => {
+      // Skip if a source has no data array
+      if (!Array.isArray(source.data)) return [];
+      // Map each item to a new object with the added 'type'
+      return source.data.map(item => ({ ...item, type: source.type }));
+    });
+
+    // 2. Filter out duplicates, keeping the first occurrence of each unique item
+    const seen = new Set();
+    return allItems.filter(item => {
+      const identifier = item[uniqueKey];
+      // If the identifier has been seen before, it's a duplicate
+      if (seen.has(identifier)) {
+        return false;
+      }
+      // Otherwise, record it and keep the item
+      seen.add(identifier);
+      return true;
+    });
+  }
+
+
   // ===========================================
   // LOCATION METHODS
   // ===========================================
@@ -53,7 +88,7 @@ export class CampaignCodexLinkers {
           continue;
         }
         
-        const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
+        const imageData = journal.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image', 'location');
         locationMap.set(journal.id, {
           id: journal.id,
           uuid: journal.uuid,
@@ -105,7 +140,7 @@ export class CampaignCodexLinkers {
                     id: location.id,
                     uuid: location.uuid,
                     name: location.name,
-                    img: location.getFlag("campaign-codex", "image") || "icons/svg/direction.svg",
+                    img: location.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image', 'shop'),
                     source: 'shop',
                     shops: [shop.name],
                     meta: `<span class="entity-type">Via ${shop.name}</span>`
@@ -152,7 +187,7 @@ export class CampaignCodexLinkers {
         return null;
       }
       
-      const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
+      const imageData = journal.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image', 'location');
       
       return {
         id: journal.id,
@@ -186,7 +221,7 @@ export class CampaignCodexLinkers {
         
         const locationData = journal.getFlag("campaign-codex", "data") || {};
         const directNPCCount = (locationData.linkedNPCs || []).length;
-        const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
+        const imageData = journal.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image', 'location');
         
         let shopNPCCount = 0;
         const shopUuids = locationData.linkedShops || [];
@@ -251,7 +286,7 @@ export class CampaignCodexLinkers {
         id: region.id,
         uuid: region.uuid,
         name: region.name,
-        img: region.getFlag("campaign-codex", "image") || "icons/svg/direction.svg"
+        img: region.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image', 'region')
       };
     } catch (error) {
       console.error(`Campaign Codex | Error fetching linked region ${regionUuid}:`, error);
@@ -323,7 +358,7 @@ export class CampaignCodexLinkers {
 
         const npcData = journal.getFlag("campaign-codex", "data") || {};
         const actor = npcData.linkedActor ? await fromUuid(npcData.linkedActor) : null;
-        const imageData = journal.getFlag("campaign-codex", "image") || actor?.img || "icons/svg/direction.svg";
+        const imageData = journal.getFlag("campaign-codex", "image") || actor?.img || TemplateComponents.getAsset('image', 'npc');
         const allLocations = await this.getAllLocations(journal, npcData.linkedLocations || []);
         const linkedShops = await this.getLinkedShopsWithLocation(journal, npcData.linkedShops || []);
 
@@ -372,7 +407,7 @@ export class CampaignCodexLinkers {
         
         const npcData = journal.getFlag("campaign-codex", "data") || {};
         const actor = npcData.linkedActor ? await fromUuid(npcData.linkedActor) : null;
-        const imageData = journal.getFlag("campaign-codex", "image") || actor?.img || "icons/svg/direction.svg";
+        const imageData = journal.getFlag("campaign-codex", "image") || actor?.img || TemplateComponents.getAsset('image', 'npc');
 
         npcs.push({
           id: journal.id,
@@ -497,7 +532,7 @@ export class CampaignCodexLinkers {
         
         const npcData = journal.getFlag("campaign-codex", "data") || {};
         const actor = npcData.linkedActor ? await fromUuid(npcData.linkedActor) : null;
-        const imageData = journal.getFlag("campaign-codex", "image") || actor?.img || "icons/svg/direction.svg";
+        const imageData = journal.getFlag("campaign-codex", "image") || actor?.img || TemplateComponents.getAsset('image', 'npc');
 
         npcs.push({
           id: journal.id,
@@ -749,10 +784,6 @@ export class CampaignCodexLinkers {
           continue;
         }
         
-        // const basePrice = item.system.price?.value || 0;
-        // const currency = item.system.price?.denomination || "gp";
-        const markup = document.getFlag("campaign-codex", "data.markup") || 1.0;
-        const finalPrice = itemData.customPrice ?? Math.round(basePrice * markup);
                 // Try common paths for price
         const basePrice = this.getValue(item, 'system.price.value') || 
                          this.getValue(item, 'system.price') || 
@@ -766,7 +797,13 @@ export class CampaignCodexLinkers {
         const weight = this.getValue(item, 'system.weight') || 
                       this.getValue(item, 'system.bulk.value') || 
                       this.getValue(item, 'system.bulk') || 0;
-                      
+
+        // const basePrice = item.system.price?.value || 0;
+        // const currency = item.system.price?.denomination || "gp";
+        const markup = document.getFlag("campaign-codex", "data.markup") || 1.0;
+        const finalPrice = itemData.customPrice ?? Math.round(basePrice * markup);
+
+
         inventory.push({
           itemId: item.id,
           itemUuid: item.uuid,
@@ -806,4 +843,11 @@ export class CampaignCodexLinkers {
     
     return inventory;
   }
+
+
+static getValue(obj, path) {
+  return path.split('.').reduce((current, key) => current?.[key], obj);
+}
+
+
 }

@@ -55,11 +55,22 @@ export class ShopSheet extends CampaignCodexBaseSheet {
       { icon: 'fas fa-percentage', value: `${data.markup}x`, label: 'MARKUP', color: '#d4af37' }
     ];
     
-    // Quick links
-    data.quickLinks = [
-      ...(data.linkedLocation ? [{ ...data.linkedLocation, type: 'location' }] : []),
-      ...data.linkedNPCs.map(npc => ({ ...npc, type: 'npc' }))
-    ];
+    // // Quick links
+    // data.quickLinks = [
+    //   ...(data.linkedLocation ? [{ ...data.linkedLocation, type: 'location' }] : []),
+    //   ...data.linkedNPCs.map(npc => ({ ...npc, type: 'npc' }))
+    // ];
+
+
+      const sources = [
+    { data: data.linkedLocation, type: 'location' },
+    { data: data.linkedNPCs, type: 'npc' }
+  ];
+
+  // Generate the de-duplicated quick links
+  data.quickLinks = CampaignCodexLinkers.createQuickLinks(sources);
+
+
     
   if (data.linkedLocation || data.isLoot !== undefined) {
     let headerContent = '';
@@ -144,7 +155,6 @@ export class ShopSheet extends CampaignCodexBaseSheet {
     } else {
       locationSection = `
         <div class="form-section">
-          <h3><i class="fas fa-map-marker-alt"></i> Location</h3>
           ${TemplateComponents.dropZone('location', 'fas fa-map-marker-alt', 'Set Location', 'Drag a location journal here to set where this entry is located')}
         </div>
       `;
@@ -167,8 +177,8 @@ export class ShopSheet extends CampaignCodexBaseSheet {
       <label class="toggle-control">
         <input type="checkbox" class="shop-loot-toggle" ${data.isLoot ? 'checked' : ''} style="margin: 0;"><span class="slider"></span>
       </label></div>
-    ${markupSection}
     ${TemplateComponents.dropZone('item', 'fas fa-plus-circle', 'Add Items', 'Drag items from the items directory to add them to inventory')}
+    ${markupSection}
     ${TemplateComponents.inventoryTable(data.inventory, data.isLoot)}
   `;
 }

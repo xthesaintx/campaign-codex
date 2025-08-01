@@ -9,6 +9,7 @@ import { CampaignCodexJournalConverter } from './campaign-codex-convertor.js';
 import { NPCDropper } from './npc-dropper.js';
 import { CampaignCodexTokenPlacement } from './token-placement.js';
 import { GroupSheet } from './sheets/group-sheet.js';
+import { TemplateComponents } from './sheets/template-components.js'; // Make sure this is imported
 
 
 Hooks.once('init', async function() {
@@ -39,6 +40,12 @@ Hooks.once('init', async function() {
   DocumentSheetConfig.registerSheet(JournalEntry, "campaign-codex", GroupSheet, {
     makeDefault: false,
     label: "Campaign Codex: Group Overview"
+  });
+
+  // Register a new Handlebars helper
+  Handlebars.registerHelper('getIcon', function(entityType) {
+    // This calls your existing static method to get the correct CSS class
+    return TemplateComponents.getAsset('icon', entityType);
   });
 
   // Register settings

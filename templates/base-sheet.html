@@ -45,7 +45,9 @@
           <div class="link-grid">
             {{#each quickLinks}}
               <div class="link-card {{type}}-link" data-{{type}}-uuid="{{uuid}}" title="{{name}}">
-                <img src="{{img}}" alt="{{name}}">
+                <!-- <img src="{{img}}" alt="{{name}}"> -->
+                          <i class="{{getIcon type}} link-icon"></i>
+
                 <span class="link-name">{{name}}</span>
               </div>
             {{/each}}
