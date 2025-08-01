@@ -57,6 +57,8 @@ async getData() {
 
   }
 
+
+
   _activateTabs(html) {
     html.find('.sidebar-tabs .tab-item').click(event => {
       event.preventDefault();
@@ -172,7 +174,6 @@ async _onImageClick(event) {
 
 async _onDrop(event) {
   event.preventDefault();
-  
   if (this._dropping) return;
   this._dropping = true;
   

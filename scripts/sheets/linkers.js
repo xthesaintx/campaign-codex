@@ -276,13 +276,25 @@ export class CampaignCodexLinkers {
         return null;
       }
 
+      const ac = this.getValue(actor, 'system.attributes.ac.value') || 
+                 this.getValue(actor, 'system.ac.value') || 
+                 this.getValue(actor, 'system.armor') || 
+                 this.getValue(actor, 'system.defense') ||
+                 this.getValue(actor, 'system.stats.toughness.value'); // SWADE
+
+      // Try common paths for HP
+      const hp = this.getValue(actor, 'system.attributes.hp') || 
+                 this.getValue(actor, 'system.hp') || 
+                 this.getValue(actor, 'system.health') ||
+                 this.getValue(actor, 'system.wounds'); // Some systems use wounds
+
       return {
         id: actor.id,
         uuid: actor.uuid,
         name: actor.name,
         img: actor.img,
-        ac: actor.system.attributes?.ac?.value || 10,
-        hp: actor.system.attributes?.hp || { value: 0, max: 0 },
+        ac: ac ||null,
+        hp: hp||null,
         type: actor.type
       };
     } catch (error) {
@@ -737,11 +749,24 @@ export class CampaignCodexLinkers {
           continue;
         }
         
-        const basePrice = item.system.price?.value || 0;
-        const currency = item.system.price?.denomination || "gp";
+        // const basePrice = item.system.price?.value || 0;
+        // const currency = item.system.price?.denomination || "gp";
         const markup = document.getFlag("campaign-codex", "data.markup") || 1.0;
         const finalPrice = itemData.customPrice ?? Math.round(basePrice * markup);
-        
+                // Try common paths for price
+        const basePrice = this.getValue(item, 'system.price.value') || 
+                         this.getValue(item, 'system.price') || 
+                         this.getValue(item, 'system.cost') || 0;
+
+        // Try common paths for currency
+        const currency = this.getValue(item, 'system.price.denomination') || 
+                        this.getValue(item, 'system.currency') || "gp";
+
+        // Try common paths for weight/bulk
+        const weight = this.getValue(item, 'system.weight') || 
+                      this.getValue(item, 'system.bulk.value') || 
+                      this.getValue(item, 'system.bulk') || 0;
+                      
         inventory.push({
           itemId: item.id,
           itemUuid: item.uuid,
@@ -751,7 +776,7 @@ export class CampaignCodexLinkers {
           finalPrice: finalPrice,
           currency: currency,
           quantity: itemData.quantity || 1,
-          weight: item.system.weight || 0
+          weight: weight
         });
       } catch (error) {
         console.error(`Campaign Codex | Error processing inventory item:`, error);

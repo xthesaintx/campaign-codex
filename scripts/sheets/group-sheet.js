@@ -27,18 +27,18 @@ export class GroupSheet extends CampaignCodexBaseSheet {
     // Sheet configuration
     data.sheetType = "group";
     data.sheetTypeLabel = "Group Overview";
-    data.customImage = this.document.getFlag("campaign-codex", "image") || "icons/svg/book.svg";
+    data.customImage = this.document.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image', 'group');
     
     // Navigation tabs with counts
     data.tabs = [
       { key: 'info', label: 'Overview', icon: 'fas fa-info-circle', active: this._currentTab === 'info' },
-      { key: 'npcs', label: 'NPCs', icon: 'fas fa-users', active: this._currentTab === 'npcs',
+      { key: 'npcs', label: 'NPCs', icon: TemplateComponents.getAsset('icon', 'npc'), active: this._currentTab === 'npcs',
         statistic: { value: data.nestedData.allNPCs.length, color: '#fd7e14' }
       },
       { key: 'inventory', label: 'Inventory', icon: 'fas fa-boxes', active: this._currentTab === 'inventory',
         statistic: { value: data.nestedData.allItems.length, color: '#28a745' }
       },
-      { key: 'locations', label: 'Locations', icon: 'fas fa-map-marker-alt', active: this._currentTab === 'locations',
+      { key: 'locations', label: 'Locations', icon: TemplateComponents.getAsset('icon', 'location'), active: this._currentTab === 'locations',
         statistic: { value: data.nestedData.allLocations.length, color: '#17a2b8' }
       },
       { key: 'notes', label: 'Notes', icon: 'fas fa-sticky-note', active: this._currentTab === 'notes' }
@@ -79,6 +79,98 @@ export class GroupSheet extends CampaignCodexBaseSheet {
     return data;
   }
 
+activateListeners(html) {
+  // Call the parent class to inherit its listeners
+  super.activateListeners(html);
+
+  // Explicitly set up drop and dragover listeners for this sheet
+  html[0].addEventListener('drop', this._onDrop.bind(this));
+  html[0].addEventListener('dragover', this._onDragOver.bind(this));
+
+  // Group-specific setup
+  this._setupGroupTabs(html);
+
+  // Tree navigation
+  html.find('.tree-node-header.expandable').click(this._onToggleTreeNode.bind(this));
+  html.find('.btn-expand-all').click(this._onExpandAll.bind(this));
+  html.find('.btn-collapse-all').click(this._onCollapseAll.bind(this));
+
+  // Sheet opening
+  html.find('.btn-open-sheet').click(this._onOpenSheet.bind(this));
+  html.find('.btn-open-actor').click(this._onOpenActor.bind(this));
+
+  // Group management
+  html.find('.btn-remove-member').click(this._onRemoveMember.bind(this));
+  html.find('.btn-focus-item').click(this._onFocusItem.bind(this));
+
+  // Filters
+  html.find('.filter-btn').click(this._onFilterChange.bind(this));
+
+  // Group tabs
+  html.find('.group-tab').click(this._onTabChange.bind(this));
+}
+
+async _handleDrop(data, event) {
+  if (data.type === "JournalEntry") {
+    const journal = await fromUuid(data.uuid);
+    if (journal && journal.getFlag("campaign-codex", "type")) {
+      await this._addMemberToGroup(journal.uuid);
+    }
+  } else if (data.type === "Actor") {
+    // Auto-create NPC journal and add it to the group
+    const actor = await fromUuid(data.uuid);
+    const npcJournal = await game.campaignCodex.findOrCreateNPCJournalForActor(actor);
+    if (npcJournal) {
+      await this._addMemberToGroup(npcJournal.uuid);
+    }
+  }
+}
+
+  async _onDrop(event) {
+    event.preventDefault();
+        console.log(event);
+    if (this._dropping) return;
+    this._dropping = true;
+    
+    let data;
+    try {
+      data = JSON.parse(event.dataTransfer.getData('text/plain'));
+    } catch (err) {
+      this._dropping = false;
+      return; // Exit if data is not valid JSON
+    }
+
+    try {
+      // Directly call the handler without trying to save a non-existent form
+      await this._handleDrop(data, event);
+      
+      // Refresh the sheet to show the new member
+      this.render(false);
+      
+    } catch (error) {
+      console.error('Campaign Codex | Error handling group drop:', error);
+    } finally {
+      this._dropping = false;
+    }
+  }
+
+_onDragOver(event) {
+  event.preventDefault();
+          console.log(event);
+  event.dataTransfer.dropEffect = "link";
+}
+
+  _setupGroupTabs(html) {
+    html.find('.group-tab').click(event => {
+      event.preventDefault();
+      const tab = event.currentTarget.dataset.tab;
+      this._currentTab = tab;
+      this._showGroupTab(tab, html);
+    });
+
+    this._showGroupTab(this._currentTab, html);
+  }
+
   _generateLeftPanel(groupMembers, nestedData) {
     return `
       <div class="group-tree">
@@ -109,12 +201,13 @@ export class GroupSheet extends CampaignCodexBaseSheet {
       const type = member.type;
       const children = this._getChildrenForMember(member, nestedData);
       const hasChildren = children.length > 0;
-      
+
+
       html += `
         <div class="tree-node" data-type="${type}" data-uuid="${member.uuid}">
           <div class="tree-node-header ${hasChildren ? 'expandable' : ''}" data-uuid="${member.uuid}">
             ${hasChildren ? '<i class="fas fa-chevron-right expand-icon"></i>' : '<i class="tree-spacer"></i>'}
-            <img src="${member.img}" class="tree-icon" alt="${member.name}">
+            <img src="${TemplateComponents.getAsset('image',member.type,member.img )}" class="tree-icon" alt="${member.name}">
             <span class="tree-label">${member.name}</span>
             <span class="tree-type">${type}</span>
             <div class="tree-actions">
@@ -154,13 +247,13 @@ export class GroupSheet extends CampaignCodexBaseSheet {
       html += `
         <div class="tree-child-group">
           <div class="tree-child-header">
-            <i class="fas fa-${this._getTypeIcon(childType)}"></i>
+            <i class="fas fa-${TemplateComponents.getAsset('icon', childType)}"></i>
             <span class="child-type-label">${childType.toUpperCase()}S (${items.length})</span>
           </div>
           <div class="tree-child-items">
             ${items.map(item => `
               <div class="tree-child-item" data-uuid="${item.uuid}" data-parent="${parent.uuid}">
-                <img src="${item.img}" class="child-icon" alt="${item.name}">
+                <img src="${TemplateComponents.getAsset('image', 'item', item.img)}" class="child-icon" alt="${item.name}">
                 <span class="child-label">${item.name}</span>
                 <div class="child-actions">
                   <button type="button" class="btn-open-sheet" data-uuid="${item.uuid}" title="Open Sheet">
@@ -209,17 +302,6 @@ export class GroupSheet extends CampaignCodexBaseSheet {
     return children;
   }
 
-  _getTypeIcon(type) {
-    const icons = {
-      region: 'globe',
-      location: 'map-marker-alt',
-      shop: 'store',
-      npc: 'user',
-      item: 'box'
-    };
-    return icons[type] || 'question';
-  }
-
   _generateInfoTab(data) {
     const stats = this._calculateGroupStats(data.nestedData);
     
@@ -228,7 +310,7 @@ export class GroupSheet extends CampaignCodexBaseSheet {
       
       <div class="group-stats-grid">
         <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-globe"></i></div>
+          <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'region')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.regions}</div>
             <div class="stat-label">Regions</div>
@@ -236,7 +318,7 @@ export class GroupSheet extends CampaignCodexBaseSheet {
         </div>
         
         <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-map-marker-alt"></i></div>
+          <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'location')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.locations}</div>
             <div class="stat-label">Locations</div>
@@ -244,15 +326,15 @@ export class GroupSheet extends CampaignCodexBaseSheet {
         </div>
         
         <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-store"></i></div>
+          <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'shop')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.shops}</div>
-            <div class="stat-label">Shops</div>
+            <div class="stat-label">Entries</div>
           </div>
         </div>
         
         <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-users"></i></div>
+          <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'npc')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.npcs}</div>
             <div class="stat-label">NPCs</div>
@@ -260,7 +342,7 @@ export class GroupSheet extends CampaignCodexBaseSheet {
         </div>
         
         <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-boxes"></i></div>
+          <div class="stat-icon"><i class="${TemplateComponents.getAsset('icon', 'item')}"></i></div>
           <div class="stat-content">
             <div class="stat-number">${stats.items}</div>
             <div class="stat-label">Items</div>
@@ -270,9 +352,8 @@ export class GroupSheet extends CampaignCodexBaseSheet {
       
       ${TemplateComponents.richTextSection('Description', 'fas fa-align-left', data.sheetData.enrichedDescription, 'description')}
       
-      <div class="form-section">
-        <h3><i class="fas fa-plus"></i> Add to Group</h3>
-        ${TemplateComponents.dropZone('member', 'fas fa-plus-circle', 'Add Members', 'Drag regions, locations, shops, or NPCs here to add them to this group')}
+       <div class="form-section">
+        ${TemplateComponents.dropZone('member', 'fas fa-plus-circle', 'Add Members', 'Drag regions, locations, entries, or NPCs here to add them to this group')}
       </div>
     `;
   }
@@ -284,7 +365,7 @@ export class GroupSheet extends CampaignCodexBaseSheet {
       <div class="npc-filters">
         <button type="button" class="filter-btn active" data-filter="all">All NPCs</button>
         <button type="button" class="filter-btn" data-filter="location">Location NPCs</button>
-        <button type="button" class="filter-btn" data-filter="shop">Shop NPCs</button>
+        <button type="button" class="filter-btn" data-filter="shop">Entry NPCs</button>
         <button type="button" class="filter-btn" data-filter="player">Player Characters</button>
       </div>
       
@@ -329,7 +410,7 @@ export class GroupSheet extends CampaignCodexBaseSheet {
     return npcs.map(npc => `
       <div class="group-npc-card" data-filter="${npc.source}" data-uuid="${npc.uuid}">
         <div class="npc-avatar">
-          <img src="${npc.img}" alt="${npc.name}">
+          <img src="${TemplateComponents.getAsset('image', 'npc', npc.img)}" alt="${npc.name}">
         </div>
         <div class="npc-info">
           <h4 class="npc-name">${npc.name}</h4>
@@ -354,7 +435,7 @@ export class GroupSheet extends CampaignCodexBaseSheet {
     return locations.map(location => `
       <div class="group-location-card" data-uuid="${location.uuid}">
         <div class="location-image">
-          <img src="${location.img}" alt="${location.name}">
+          <img src="${TemplateComponents.getAsset('image', location.type, location.img)}" alt="${location.name}">
         </div>
         <div class="location-info">
           <h4 class="location-name">${location.name}</h4>
@@ -378,13 +459,12 @@ export class GroupSheet extends CampaignCodexBaseSheet {
     for (const [shopUuid, items] of Object.entries(nestedData.itemsByShop)) {
       const shop = nestedData.allShops.find(s => s.uuid === shopUuid);
       if (!shop || items.length === 0) continue;
-      
       const totalValue = items.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
       
       html += `
         <div class="shop-inventory-section">
           <div class="shop-header">
-            <img src="${shop.img}" alt="${shop.name}" class="shop-icon">
+            <img src="${TemplateComponents.getAsset('image', shop.type, shop.img)}" alt="${shop.name}" class="shop-icon">
             <div class="shop-info">
               <h4 class="shop-name">${shop.name}</h4>
               <div class="shop-stats">${items.length} items | ${totalValue}gp total</div>
@@ -397,7 +477,7 @@ export class GroupSheet extends CampaignCodexBaseSheet {
           <div class="shop-items">
             ${items.map(item => `
               <div class="group-item-card">
-                <img src="${item.img}" alt="${item.name}" class="item-icon">
+                <img src="${TemplateComponents.getAsset('image', 'item',item.img)}" alt="${item.name}" class="item-icon">
                 <div class="item-info">
                   <span class="item-name">${item.name}</span>
                   <span class="item-price">${item.quantity}x ${item.finalPrice}${item.currency}</span>
@@ -412,6 +492,8 @@ export class GroupSheet extends CampaignCodexBaseSheet {
     return html;
   }
 
+
+
   _calculateGroupStats(nestedData) {
     return {
       regions: nestedData.allRegions.length,
@@ -422,48 +504,7 @@ export class GroupSheet extends CampaignCodexBaseSheet {
     };
   }
 
-  _activateSheetSpecificListeners(html) {
-    // Tree navigation
-    html.find('.tree-node-header.expandable').click(this._onToggleTreeNode.bind(this));
-    html.find('.btn-expand-all').click(this._onExpandAll.bind(this));
-    html.find('.btn-collapse-all').click(this._onCollapseAll.bind(this));
-    
-    // Sheet opening
-    html.find('.btn-open-sheet').click(this._onOpenSheet.bind(this));
-    html.find('.btn-open-actor').click(this._onOpenActor.bind(this));
-    
-    // Group management
-    html.find('.btn-remove-member').click(this._onRemoveMember.bind(this));
-    html.find('.btn-focus-item').click(this._onFocusItem.bind(this));
-    
-    // Filters
-    html.find('.filter-btn').click(this._onFilterChange.bind(this));
-    
-    // Group tabs
-    html.find('.group-tab').click(this._onTabChange.bind(this));
-  }
 
-  async _handleDrop(data, event) {
-    if (data.type === "JournalEntry") {
-      await this._handleJournalDrop(data, event);
-    } else if (data.type === "Actor") {
-      // Auto-create NPC journal and add it
-      const npcJournal = await game.campaignCodex.findOrCreateNPCJournalForActor(await fromUuid(data.uuid));
-      if (npcJournal) {
-        await this._addMemberToGroup(npcJournal.uuid);
-      }
-    }
-  }
-
-  async _handleJournalDrop(data, event) {
-    const journal = await fromUuid(data.uuid);
-    if (!journal) return;
-    
-    const journalType = journal.getFlag("campaign-codex", "type");
-    if (journalType) {
-      await this._addMemberToGroup(journal.uuid);
-    }
-  }
 
   async _addMemberToGroup(memberUuid) {
     await this._saveFormData();
@@ -576,7 +617,26 @@ export class GroupSheet extends CampaignCodexBaseSheet {
     $html.find(`.group-tab-panel[data-tab="${tabName}"]`).addClass('active');
   }
 
+  // Override close to save on close (copied from base sheet)
+  async close(options = {}) {
+    // Check if we're being force-closed due to document deletion
+    if (this._forceClose) {
+      return super.close(options);
+    }
+
+    // Check if document still exists before trying to save
+    const documentExists = this.document && game.journal.get(this.document.id);
+    
+    if (documentExists && !this.document._pendingDeletion) {
+        await this._saveFormData();
+    }
+    
+    return super.close(options);
+  }
+
   getSheetType() {
     return "group";
   }
+
+
 }

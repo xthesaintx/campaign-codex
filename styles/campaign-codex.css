@@ -1,6 +1,5 @@
 /* Campaign Codex - Modular Design System */
 
-@import url('https://fonts.googleapis.com/css2?family=Modesto+Condensed:wght@400;700&display=swap');
 
 :root {
   --cc-primary: #8b1538;
@@ -21,7 +20,7 @@
 }
 
 .sheet.journal-entry.cc-editor .window-content {
-  background: url(../ui/texture.jpg); 
+  background: url(../modules/campaign-codex/ui/texture.jpg); 
 }
 
 

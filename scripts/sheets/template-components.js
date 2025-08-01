@@ -1,6 +1,34 @@
 // Enhanced Template component system for Campaign Codex
 export class TemplateComponents {
 
+static getAsset(assetType, entityType, currentImg = null) {
+  const myModulePath = "/modules/campaign-codex/";
+  const ASSET_MAP = {
+    region:   { icon: 'fas fa-globe',          image: myModulePath+'ui/region.webp' },
+    location: { icon: 'fas fa-map-marker-alt', image: myModulePath+'ui/location.webp' },
+    shop:     { icon: 'fas fa-house',          image: myModulePath+'ui/shop.webp' },
+    npc:      { icon: 'fas fa-user',           image: myModulePath+'ui/npc.webp' },
+    item:     { icon: 'fas fa-box',            image: myModulePath+'ui/item.webp' },
+    group:    { icon: 'fas fa-sitemap',        image: myModulePath+'ui/group.webp' },
+    default:  { icon: 'fas fa-question',       image: myModulePath+'ui/default.webp' }
+  };
+
+  const assets = ASSET_MAP[entityType] || ASSET_MAP.default;
+
+  if (assetType === 'image') {
+    // If currentImg exists, return it. Otherwise, return the default mapped image.
+    return currentImg || assets.image;
+  }
+  
+  if (assetType === 'icon') {
+    return assets.icon;
+  }
+
+  // Fallback if assetType is invalid
+  return ASSET_MAP.default.image;
+}
+
+
 
   // Add this new method to the TemplateComponents class
   static richTextSection(label, icon, enrichedValue, editlocation) {

@@ -42,18 +42,18 @@ Hooks.once('init', async function() {
   });
 
   // Register settings
-  game.settings.register("campaign-codex", "showPlayerNotes", {
-    name: "Show Player Notes Section",
-    hint: "Allow players to add their own notes",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false
-  });
+  // game.settings.register("campaign-codex", "showPlayerNotes", {
+  //   name: "Show Player Notes Section",
+  //   hint: "Allow players to add their own notes",
+  //   scope: "world",
+  //   config: true,
+  //   type: Boolean,
+  //   default: false
+  // });
 
   game.settings.register("campaign-codex", "useOrganizedFolders", {
     name: "Organize in Folders",
-    hint: "Automatically create and organize Campaign Codex journals in folders",
+    hint: "Automatically create and organise Campaign Codex journals in folders",
     scope: "world",
     config: true,
     type: Boolean,
@@ -160,6 +160,7 @@ Hooks.on('getActorDirectoryEntryContext', (html, options) => {
       }
     }
   });
+
 });
 
 // Add journal entry creation buttons
@@ -180,8 +181,96 @@ Hooks.on('getJournalDirectoryEntryContext', (html, options) => {
       }
     }
   });
+    options.push({
+    name: "Add to Group",
+    icon: '<i class="fas fa-plus-circle"></i>',
+    condition: li => {
+      const journalUuid = li.data("uuid") || `JournalEntry.${li.data("documentId")}`;
+      const journal = fromUuidSync(journalUuid);
+      const journalType = journal?.getFlag("campaign-codex", "type");
+      return journalType && ['region', 'location', 'shop', 'npc'].includes(journalType) && game.user.isGM;
+    },
+    callback: async li => {
+      const journalUuid = li.data("uuid") || `JournalEntry.${li.data("documentId")}`;
+      const journal = await fromUuid(journalUuid);
+      if (journal) {
+        await showAddToGroupDialog(journal);
+      }
+    }
+  });
 });
 
+// Helper function for add to group dialog
+async function showAddToGroupDialog(journal) {
+  const groupJournals = game.journal.filter(j => j.getFlag("campaign-codex", "type") === "group");
+  
+  if (groupJournals.length === 0) {
+    ui.notifications.warn("No group overviews found. Create one first.");
+    return;
+  }
+
+  const options = groupJournals.map(group => 
+    `<option value="${group.uuid}">${group.name}</option>`
+  ).join('');
+
+  return new Promise((resolve) => {
+    new Dialog({
+      title: "Add to Group",
+      content: `
+        <form class="flexcol">
+          <div class="form-group">
+            <label>Select Group:</label>
+            <select name="groupUuid" style="width: 100%;">
+              ${options}
+            </select>
+          </div>
+          <p style="font-size: 12px; color: #666; margin: 8px 0;">
+            This will add "${journal.name}" to the selected group overview.
+          </p>
+        </form>
+      `,
+      buttons: {
+        add: {
+          icon: '<i class="fas fa-plus"></i>',
+          label: "Add to Group",
+          callback: async (html) => {
+            const groupUuid = html.find('[name="groupUuid"]').val();
+            const groupJournal = await fromUuid(groupUuid);
+            
+            if (groupJournal) {
+              const groupData = groupJournal.getFlag("campaign-codex", "data") || {};
+              const members = groupData.members || [];
+              
+              if (!members.includes(journal.uuid)) {
+                members.push(journal.uuid);
+                groupData.members = members;
+                await groupJournal.setFlag("campaign-codex", "data", groupData);
+                ui.notifications.info(`Added "${journal.name}" to group "${groupJournal.name}"`);
+                
+                // Refresh any open group sheets
+                for (const app of Object.values(ui.windows)) {
+                  if (app.document && app.document.uuid === groupJournal.uuid) {
+                    app.render(false);
+                    break;
+                  }
+                }
+              } else {
+                ui.notifications.warn(`"${journal.name}" is already in this group.`);
+              }
+            }
+            resolve();
+          }
+        },
+        cancel: {
+          icon: '<i class="fas fa-times"></i>',
+          label: "Cancel",
+          callback: () => resolve()
+        }
+      },
+      default: "add"
+    }).render(true);
+  });
+}
 
 // Campaign Codex Export/Import buttons
 Hooks.on('renderJournalDirectory', (app, html, data) => {
