@@ -467,6 +467,28 @@ export class CleanUp {
     console.log(`Campaign Codex | Manual cleanup completed. Fixed ${fixPromises.length} documents.`);
     ui.notifications.info(`Manual cleanup completed. Fixed ${brokenLinks.length} broken links in ${fixPromises.length} documents.`);
   }
+
+async cleanupSceneRelationships(deletedUuid, allDocuments) {
+  const updatePromises = [];
+  
+  // If a scene is deleted, remove it from all documents that reference it
+  for (const doc of allDocuments) {
+    const docData = doc.getFlag("campaign-codex", "data") || {};
+    
+    if (docData.linkedScene === deletedUuid) {
+      console.log(`Campaign Codex | Removing scene reference from: ${doc.name}`);
+      updatePromises.push(
+        doc.unsetFlag("campaign-codex", "data.linkedScene")
+          .catch(err => console.warn(`Failed to update ${doc.name}:`, err))
+      );
+    }
+  }
+  
+  return updatePromises;
+}
+
+
+  
 }
 // export class CleanUp {
 //   constructor() {

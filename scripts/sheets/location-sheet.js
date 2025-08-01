@@ -18,7 +18,22 @@ export class LocationSheet extends CampaignCodexBaseSheet {
     const data = await super.getData();
     const locationData = this.document.getFlag("campaign-codex", "data") || {};
 
-   
+    data.linkedScene = null;
+  if (locationData.linkedScene) {
+    try {
+      const scene = await fromUuid(locationData.linkedScene);
+      if (scene) {
+        data.linkedScene = {
+          uuid: scene.uuid,
+          name: scene.name,
+          img: scene.thumb || "icons/svg/map.svg"
+        };
+      }
+    } catch (error) {
+      console.warn(`Campaign Codex | Linked scene not found: ${locationData.linkedScene}`);
+    }
+  }
+
     // Get linked documents - split direct and auto-populated NPCs
     data.directNPCs = await CampaignCodexLinkers.getDirectNPCs(this.document,locationData.linkedNPCs || []);
     data.shopNPCs = await CampaignCodexLinkers.getShopNPCs(this.document,locationData.linkedShops || []);
@@ -52,7 +67,7 @@ export class LocationSheet extends CampaignCodexBaseSheet {
     // ];
 
   const sources = [
-    { data: data.allNPCs, type: 'location' },
+    { data: data.allNPCs, type: 'npc' },
     { data: data.linkedShops, type: 'shop' },
     // { data: data.associates, type: 'npc' }
   ];
@@ -69,16 +84,43 @@ export class LocationSheet extends CampaignCodexBaseSheet {
 
 
     
-    // Custom header content (region info)
-    if (data.linkedRegion) {
-      data.customHeaderContent = `
-        <div class="region-info">
-          <span class="region-label">Region:</span>
-          <span class="region-name region-link" data-region-uuid="${data.linkedRegion.uuid}" style="cursor: pointer; color: var(--cc-accent);">${data.linkedRegion.name}</span>
-        </div>
-      `;
-    }
-    
+  // Update custom header content
+  let headerContent = '';
+  
+  if (data.linkedRegion) {
+    headerContent += `
+      <div class="region-info">
+        <span class="region-label">Region:</span>
+        <span class="region-name region-link" data-region-uuid="${data.linkedRegion.uuid}" style="cursor: pointer; color: var(--cc-accent);">${data.linkedRegion.name}</span>
+      </div>
+    `;
+  }
+  
+  if (data.linkedScene) {
+    headerContent += `
+      <div class="scene-info">
+        
+        <span class="scene-name open-scene" data-scene-uuid="${data.linkedScene.uuid}" title="Open Scene"> <i class="fas fa-map"></i> ${data.linkedScene.name}</span>
+
+        <button type="button" class="scene-btn remove-scene" title="Unlink Scene">
+          <i class="fas fa-unlink"></i>
+        </button>
+      </div>
+    `;
+  }
+  else
+  {   headerContent += `<div class="scene-info">
+        
+        <span class="scene-name open-scene" style="text-align:center;"><i class="fas fa-link"></i> Drop scene to link</span>
+
+      </div>
+    `;}
+  
+  if (headerContent) {
+    data.customHeaderContent = headerContent;
+  }
+  
+      
     // Tab panels
     data.tabPanels = [
       {
@@ -232,6 +274,8 @@ _generateNPCsTab(data) {
     html.find('.open-shop').click(async (e) => await this._onOpenDocument(e, 'shop'));
     html.find('.open-actor').click(async (e) => await this._onOpenDocument(e, 'actor'));
     html.find('.open-region').click(async (e) => await this._onOpenDocument(e, 'region')); 
+  html.find('.open-scene').click(this._onOpenScene.bind(this));
+  html.find('.remove-scene').click(this._onRemoveScene.bind(this));
 
     // Quick links
     html.find('.npc-link').click(async (e) => await this._onOpenDocument(e, 'npc'));
@@ -250,12 +294,28 @@ _generateNPCsTab(data) {
   }
 
   async _handleDrop(data, event) {
-    if (data.type === "JournalEntry") {
+      if (data.type === "Scene") {
+    await this._handleSceneDrop(data, event);
+  } else if (data.type === "JournalEntry") {
       await this._handleJournalDrop(data, event);
     } else if (data.type === "Actor") {
       await this._handleActorDrop(data, event);
     }
   }
+
+async _handleSceneDrop(data, event) {
+  const scene = await fromUuid(data.uuid);
+  if (!scene) {
+    ui.notifications.warn("Could not find the dropped scene.");
+    return;
+  }
+  
+  await this._saveFormData();
+  await game.campaignCodex.linkSceneToDocument(scene, this.document);
+  ui.notifications.info(`Linked scene "${scene.name}" to ${this.document.name}`);
+  this.render(false);
+}
+
 
 async _handleJournalDrop(data, event) {
   const journal = await fromUuid(data.uuid);
@@ -285,6 +345,25 @@ async _handleJournalDrop(data, event) {
     return "location";
   }
 
+// Add these methods to the sheet classes
+async _onOpenScene(event) {
+  event.preventDefault();
+  const sceneUuid = event.currentTarget.dataset.sceneUuid;
+  const scene = await fromUuid(sceneUuid);
+  if (scene) {
+    scene.view();
+  }
+}
+
+async _onRemoveScene(event) {
+  event.preventDefault();
+  await this._saveFormData();
+  const currentData = this.document.getFlag("campaign-codex", "data") || {};
+  currentData.linkedScene = null;
+  await this.document.setFlag("campaign-codex", "data", currentData);
+  this.render(false);
+  ui.notifications.info("Unlinked scene");
+}
 
 
 // ADD this method to handle the drop to map button click:

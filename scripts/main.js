@@ -170,6 +170,23 @@ Hooks.on('getActorDirectoryEntryContext', (html, options) => {
 
 });
 
+
+Hooks.on('preDeleteScene', async (scene, options, userId) => {
+  try {
+    const allCCDocuments = game.journal.filter(j => j.getFlag("campaign-codex", "type"));
+    const updatePromises = await this.cleanupSceneRelationships(scene.uuid, allCCDocuments);
+    
+    if (updatePromises.length > 0) {
+      await Promise.allSettled(updatePromises);
+      console.log(`Campaign Codex | Scene cleanup completed for: ${scene.name}`);
+    }
+  } catch (error) {
+    console.warn(`Campaign Codex | Scene cleanup failed for ${scene.name}:`, error);
+  }
+});
+
+
+
 // Add journal entry creation buttons
 Hooks.on('getJournalDirectoryEntryContext', (html, options) => {
   options.push({

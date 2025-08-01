@@ -18,6 +18,24 @@ export class RegionSheet extends CampaignCodexBaseSheet {
     const data = await super.getData();
     const regionData = this.document.getFlag("campaign-codex", "data") || {};
 
+  data.linkedScene = null;
+  if (regionData.linkedScene) {
+    try {
+      const scene = await fromUuid(regionData.linkedScene);
+      if (scene) {
+        data.linkedScene = {
+          uuid: scene.uuid,
+          name: scene.name,
+          img: scene.thumb || "icons/svg/map.svg"
+        };
+      }
+    } catch (error) {
+      console.warn(`Campaign Codex | Linked scene not found: ${regionData.linkedScene}`);
+    }
+  }
+
+
+
      
     // Get linked documents with complete hierarchy
     data.linkedLocations = await CampaignCodexLinkers.getLinkedLocations(this.document,regionData.linkedLocations || []);
@@ -68,6 +86,39 @@ export class RegionSheet extends CampaignCodexBaseSheet {
 
   // Generate the de-duplicated quick links
   data.quickLinks = CampaignCodexLinkers.createQuickLinks(sources);
+
+
+
+
+  // Update custom header content
+  let headerContent = '';
+  
+  if (data.linkedScene) {
+    headerContent += `
+      <div class="scene-info">
+        
+        <span class="scene-name open-scene" data-scene-uuid="${data.linkedScene.uuid}" title="Open Scene"> <i class="fas fa-map"></i> ${data.linkedScene.name}</span>
+
+        <button type="button" class="scene-btn remove-scene" title="Unlink Scene">
+          <i class="fas fa-unlink"></i>
+        </button>
+      </div>
+    `;
+  }
+  else
+  {   headerContent += `<div class="scene-info">
+        
+        <span class="scene-name open-scene" style="text-align:center;"><i class="fas fa-link"></i> Drop scene to link</span>
+
+      </div>
+    `;}
+  
+  if (headerContent) {
+    data.customHeaderContent = headerContent;
+
+}
+
+
 
 
 
@@ -211,15 +262,53 @@ export class RegionSheet extends CampaignCodexBaseSheet {
     html.find('.location-link').click(async (e) => await this._onOpenDocument(e, 'location'));
     // html.find('.cc-edit-description').click(event => this._onEditDescription(event, 'description'));
     // html.find('.cc-edit-notes').click(event => this._onEditDescription(event, 'notes'));
+html.find('.open-scene').click(this._onOpenScene.bind(this));
+html.find('.remove-scene').click(this._onRemoveScene.bind(this));
+
 
 
   }
+// Add these methods to the sheet classes
+async _onOpenScene(event) {
+  event.preventDefault();
+  const sceneUuid = event.currentTarget.dataset.sceneUuid;
+  const scene = await fromUuid(sceneUuid);
+  if (scene) {
+    scene.view();
+  }
+}
 
+async _onRemoveScene(event) {
+  event.preventDefault();
+  await this._saveFormData();
+  const currentData = this.document.getFlag("campaign-codex", "data") || {};
+  currentData.linkedScene = null;
+  await this.document.setFlag("campaign-codex", "data", currentData);
+  this.render(false);
+  ui.notifications.info("Unlinked scene");
+}
   async _handleDrop(data, event) {
-    if (data.type === "JournalEntry") {
+    if (data.type === "Scene") {
+    await this._handleSceneDrop(data, event);
+  } else if(data.type === "JournalEntry") {
       await this._handleJournalDrop(data, event);
     }
   }
+
+async _handleSceneDrop(data, event) {
+  const scene = await fromUuid(data.uuid);
+  if (!scene) {
+    ui.notifications.warn("Could not find the dropped scene.");
+    return;
+  }
+  
+  await this._saveFormData();
+  await game.campaignCodex.linkSceneToDocument(scene, this.document);
+  ui.notifications.info(`Linked scene "${scene.name}" to ${this.document.name}`);
+  this.render(false);
+}
+
+
 
   async _handleJournalDrop(data, event) {
     const journal = await fromUuid(data.uuid);

@@ -382,15 +382,6 @@
 /* Drop Zones */
 .campaign-codex .drop-zone {
   border-radius: 12px;
-  padding: 40px;
-  text-align: center;
-  margin-bottom: 24px;
-  background: white;
-  transition: all 0.3s ease;
-}
-
-.campaign-codex .drop-zone {
-  border-radius: 12px;
   padding: 10px;
   text-align: center;
   margin-bottom: 12px;
@@ -770,12 +761,6 @@
   object-fit: cover;
 }
 
-.campaign-codex .item-name {
-  font-weight: 600;
-  color: var(--cc-main-text);
-  font-size: 14px;
-  margin-bottom: 2px;
-}
 
 .campaign-codex .item-weight {
   font-size: 11px;
@@ -1029,11 +1014,6 @@
   border-color: #1e7e34;
 }
 
-/* Draggable Inventory Items */
-.campaign-codex .inventory-item {
-  cursor: grab;
-  transition: all 0.2s ease;
-}
 
 .campaign-codex .inventory-item:hover {
   background: #f8f9fa;
@@ -1500,11 +1480,13 @@ top:44px;
 .tree-header h3 {
   color: var(--cc-accent);
   font-family: var(--cc-font-heading);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
   margin: 0;
+    border-bottom: 0px;
+
 }
 
 .btn-collapse-all {
@@ -1532,7 +1514,14 @@ top:44px;
 .tree-actions {
   padding: 12px 16px;
   border-top: 1px solid var(--cc-border);
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
+
+
+
 
 .btn-expand-all {
   width: 100%;
@@ -1577,6 +1566,16 @@ top:44px;
   cursor: pointer;
 }
 
+.tree-node .node-icon {
+  color: var(--cc-accent);
+  font-size: 16px;
+}
+
+.tree-node .node-open-icon {
+  color: var(--cc-accent);
+  font-size: 10px;
+}
+
 .expand-icon {
   width: 16px;
   text-align: center;
@@ -1617,12 +1616,6 @@ top:44px;
   margin-right: 8px;
 }
 
-.tree-actions {
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
 
 .tree-node-header:hover .tree-actions {
   opacity: 1;
@@ -1654,6 +1647,11 @@ top:44px;
 
 .tree-child-group {
   margin: 8px 0;
+}
+
+.tree-children .btn-remove-member
+{
+  visibility: hidden;
 }
 
 .tree-child-header {
@@ -1856,9 +1854,13 @@ top:44px;
   display: flex;
   gap: 8px;
   margin-bottom: 24px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
 }
-
+.btn-collapse-all
+{
+  width:40px;
+}
 .filter-btn {
   padding: 8px 16px;
   border: 1px solid #ddd;
@@ -2152,4 +2154,64 @@ top:44px;
   font-size: 10px;
   color: var(--cc-accent);
   font-weight: 600;
+}
+
+
+/*SCENE*/
+/* Scene Info Styling */
+.campaign-codex .scene-info {
+  margin-top: 8px;
+    padding-left: 12px;
+    padding-top: 4px;
+    padding-right: 4px;
+    padding-bottom: 4px;
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+
+}
+
+.campaign-codex .scene-label {
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.campaign-codex .scene-label i {
+  color: var(--cc-accent);
+}
+
+.campaign-codex .scene-name {
+  color: var(--cc-accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex: 1;
+  text-align: left;
+  cursor: pointer;
+}
+
+.campaign-codex .scene-btn {
+    background: transparent;
+    border: 0px;
+    color: var(--cc-accent);
+    padding: 0px;
+    border-radius: 8px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 32px;
+}
+
+.campaign-codex .scene-btn:hover {
+  border: 0px;
+  color: white;
 }

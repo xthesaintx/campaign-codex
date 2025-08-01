@@ -27,6 +27,7 @@ export class CampaignManager {
             data: {
               description: "",
               linkedNPCs: [],
+              linkedScene: null,  // Add this
               linkedShops: [],
               notes: ""
             }
@@ -86,6 +87,7 @@ async findOrCreateNPCJournalForActor(actor) {
               linkedNPCs: [],
               linkedLocation: null,
               inventory: [],
+              linkedScene: null,  // Add this
               markup: 1.0,
               notes: ""
             }
@@ -167,6 +169,7 @@ async createNPCJournal(actor = null, name = null) {
             data: {
               description: "",
               linkedLocations: [],
+              linkedScene: null,  // Add this
               notes: ""
             }
           },
@@ -298,7 +301,13 @@ async createNPCJournal(actor = null, name = null) {
     }
   }
 
-
+async linkSceneToDocument(scene, document) {
+  if (!scene || !document) return;
+  
+  const docData = document.getFlag("campaign-codex", "data") || {};
+  docData.linkedScene = scene.uuid;
+  await document.setFlag("campaign-codex", "data", docData);
+}
 
 async linkLocationToShop(locationDoc, shopDoc) {
   // Prevent self-linking

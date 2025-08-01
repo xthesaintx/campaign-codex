@@ -20,6 +20,26 @@ export class ShopSheet extends CampaignCodexBaseSheet {
     data.isLoot = shopData.isLoot || false;
     data.hideInventory = shopData.hideInventory || false;
 
+
+
+  data.linkedScene = null;
+  if (shopData.linkedScene) {
+    try {
+      const scene = await fromUuid(shopData.linkedScene);
+      if (scene) {
+        data.linkedScene = {
+          uuid: scene.uuid,
+          name: scene.name,
+          img: scene.thumb || "icons/svg/map.svg"
+        };
+      }
+    } catch (error) {
+      console.warn(`Campaign Codex | Linked scene not found: ${shopData.linkedScene}`);
+    }
+  }
+
+
+
     // Get linked documents
     data.linkedNPCs = await CampaignCodexLinkers.getLinkedNPCs(shopData.linkedNPCs || []);
     data.linkedNPCs = await CampaignCodexLinkers.getLinkedNPCs(this.document, shopData.linkedNPCs || []);
@@ -72,7 +92,6 @@ export class ShopSheet extends CampaignCodexBaseSheet {
 
 
     
-  if (data.linkedLocation || data.isLoot !== undefined) {
     let headerContent = '';
     
     if (data.linkedLocation) {
@@ -84,6 +103,27 @@ export class ShopSheet extends CampaignCodexBaseSheet {
       `;
     }
     
+
+  if (data.linkedScene) {
+    headerContent += `
+      <div class="scene-info">
+        
+        <span class="scene-name open-scene" data-scene-uuid="${data.linkedScene.uuid}" title="Open Scene"> <i class="fas fa-map"></i> ${data.linkedScene.name}</span>
+
+        <button type="button" class="scene-btn remove-scene" title="Unlink Scene">
+          <i class="fas fa-unlink"></i>
+        </button>
+      </div>
+    `;
+  }
+  else
+  {   headerContent += `<div class="scene-info">
+        
+        <span class="scene-name open-scene" style="text-align:center;"><i class="fas fa-link"></i> Drop scene to link</span>
+
+      </div>
+    `;}
+
     // Add toggle controls
     headerContent += `
       <div class="shop-toggles" style="margin-top: 8px; display: flex; gap: 12px; align-items: center; justify-content: center;">
@@ -95,7 +135,7 @@ export class ShopSheet extends CampaignCodexBaseSheet {
     `;
     
     data.customHeaderContent = headerContent;
-  }
+  
     
     // Tab panels
     data.tabPanels = [
@@ -240,10 +280,34 @@ _generateNPCsTab(data) {
 
     // Item dragging
     html.find('.inventory-item').on('dragstart', this._onItemDragStart.bind(this));
+    // Add these methods to the sheet classes
+    html.find('.open-scene').click(this._onOpenScene.bind(this));
+html.find('.remove-scene').click(this._onRemoveScene.bind(this));
+
   }
+async _onOpenScene(event) {
+  event.preventDefault();
+  const sceneUuid = event.currentTarget.dataset.sceneUuid;
+  const scene = await fromUuid(sceneUuid);
+  if (scene) {
+    scene.view();
+  }
+}
+
+async _onRemoveScene(event) {
+  event.preventDefault();
+  await this._saveFormData();
+  const currentData = this.document.getFlag("campaign-codex", "data") || {};
+  currentData.linkedScene = null;
+  await this.document.setFlag("campaign-codex", "data", currentData);
+  this.render(false);
+  ui.notifications.info("Unlinked scene");
+}
 
   async _handleDrop(data, event) {
-    if (data.type === "Item") {
+      if (data.type === "Scene") {
+    await this._handleSceneDrop(data, event);
+  } else if (data.type === "Item") {
       await this._handleItemDrop(data, event);
     } else if (data.type === "JournalEntry") {
       await this._handleJournalDrop(data, event);
@@ -251,6 +315,22 @@ _generateNPCsTab(data) {
       await this._handleActorDrop(data, event);
     }
   }
+
+
+async _handleSceneDrop(data, event) {
+  const scene = await fromUuid(data.uuid);
+  if (!scene) {
+    ui.notifications.warn("Could not find the dropped scene.");
+    return;
+  }
+  
+  await this._saveFormData();
+  await game.campaignCodex.linkSceneToDocument(scene, this.document);
+  ui.notifications.info(`Linked scene "${scene.name}" to ${this.document.name}`);
+  this.render(false);
+}
+
+
 
 async _onLootToggle(event) {
   const isLoot = event.target.checked;

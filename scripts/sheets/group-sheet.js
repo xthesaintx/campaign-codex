@@ -84,8 +84,8 @@ activateListeners(html) {
   super.activateListeners(html);
 
   // Explicitly set up drop and dragover listeners for this sheet
-  html[0].addEventListener('drop', this._onDrop.bind(this));
-  html[0].addEventListener('dragover', this._onDragOver.bind(this));
+  // html[0].addEventListener('drop', this._onDrop.bind(this));
+  // html[0].addEventListener('dragover', this._onDragOver.bind(this));
 
   // Group-specific setup
   this._setupGroupTabs(html);
@@ -177,7 +177,7 @@ _onDragOver(event) {
         <div class="tree-header">
           <h3><i class="fas fa-sitemap"></i> Group Structure</h3>
           <button type="button" class="btn-collapse-all" title="Collapse All">
-            <i class="fas fa-compress-arrows-alt"></i>
+            <i class="fas fa-arrow-right-to-bracket"></i>
           </button>
         </div>
         
@@ -194,35 +194,34 @@ _onDragOver(event) {
     `;
   }
 
-  _generateTreeNodes(groupMembers, nestedData) {
-    let html = '';
-    
-    for (const member of groupMembers) {
-      const type = member.type;
-      const children = this._getChildrenForMember(member, nestedData);
-      const hasChildren = children.length > 0;
 
+  _generateTreeNodes(nodes, nestedData) {
+    let html = '';
+    if (!nodes) return html;
+
+    for (const node of nodes) {
+      const children = this._getChildrenForMember(node, nestedData);
+      const hasChildren = children && children.length > 0;
 
       html += `
-        <div class="tree-node" data-type="${type}" data-uuid="${member.uuid}">
-          <div class="tree-node-header ${hasChildren ? 'expandable' : ''}" data-uuid="${member.uuid}">
+        <div class="tree-node" data-type="${node.type}" data-uuid="${node.uuid}">
+          <div class="tree-node-header ${hasChildren ? 'expandable' : ''}" data-uuid="${node.uuid}">
             ${hasChildren ? '<i class="fas fa-chevron-right expand-icon"></i>' : '<i class="tree-spacer"></i>'}
-            <img src="${TemplateComponents.getAsset('image',member.type,member.img )}" class="tree-icon" alt="${member.name}">
-            <span class="tree-label">${member.name}</span>
-            <span class="tree-type">${type}</span>
+            <i class="${TemplateComponents.getAsset('icon', node.type)} node-icon" alt="${node.name}">&nbsp;</i><span class="tree-label"> ${node.name}</span>
+            
             <div class="tree-actions">
-              <button type="button" class="btn-open-sheet" data-uuid="${member.uuid}" title="Open Sheet">
+              <button type="button" class="btn-open-sheet" data-uuid="${node.uuid}" title="Open Sheet">
                 <i class="fas fa-external-link-alt"></i>
               </button>
-              <button type="button" class="btn-remove-member" data-uuid="${member.uuid}" title="Remove from Group">
+              <button type="button" class="btn-remove-member" data-uuid="${node.uuid}" title="Remove from Group">
                 <i class="fas fa-times"></i>
               </button>
-            </div>
+            </div><span class="tree-type">${node.type}</span>
           </div>
           
           ${hasChildren ? `
             <div class="tree-children" style="display: none;">
-              ${this._generateChildrenNodes(children, member)}
+              ${this._generateTreeNodes(children, nestedData)}
             </div>
           ` : ''}
         </div>
@@ -232,46 +231,84 @@ _onDragOver(event) {
     return html;
   }
 
-  _generateChildrenNodes(children, parent) {
-    let html = '';
+  // _generateTreeNodes(groupMembers, nestedData) {
+  //   let html = '';
     
-    // Group children by type
-    const childrenByType = children.reduce((acc, child) => {
-      if (!acc[child.type]) acc[child.type] = [];
-      acc[child.type].push(child);
-      return acc;
-    }, {});
+  //   for (const member of groupMembers) {
+  //     const type = member.type;
+  //     const children = this._getChildrenForMember(member, nestedData);
+  //     const hasChildren = children.length > 0;
+
+
+  //     html += `
+  //       <div class="tree-node" data-type="${type}" data-uuid="${member.uuid}">
+  //         <div class="tree-node-header ${hasChildren ? 'expandable' : ''}" data-uuid="${member.uuid}">
+  //           ${hasChildren ? '<i class="fas fa-chevron-right expand-icon"></i>' : '<i class="tree-spacer"></i>'}
+  //           <img src="${TemplateComponents.getAsset('image',member.type,member.img )}" class="tree-icon" alt="${member.name}">
+  //           <span class="tree-label">${member.name}</span>
+  //           <span class="tree-type">${type}</span>
+  //           <div class="tree-actions">
+  //             <button type="button" class="btn-open-sheet" data-uuid="${member.uuid}" title="Open Sheet">
+  //               <i class="fas fa-external-link-alt"></i>
+  //             </button>
+  //             <button type="button" class="btn-remove-member" data-uuid="${member.uuid}" title="Remove from Group">
+  //               <i class="fas fa-times"></i>
+  //             </button>
+  //           </div>
+  //         </div>
+          
+  //         ${hasChildren ? `
+  //           <div class="tree-children" style="display: none;">
+  //             ${this._generateChildrenNodes(children, member)}
+  //           </div>
+  //         ` : ''}
+  //       </div>
+  //     `;
+  //   }
     
-    // Generate nodes for each type
-    for (const [childType, items] of Object.entries(childrenByType)) {
-      html += `
-        <div class="tree-child-group">
-          <div class="tree-child-header">
-            <i class="fas fa-${TemplateComponents.getAsset('icon', childType)}"></i>
-            <span class="child-type-label">${childType.toUpperCase()}S (${items.length})</span>
-          </div>
-          <div class="tree-child-items">
-            ${items.map(item => `
-              <div class="tree-child-item" data-uuid="${item.uuid}" data-parent="${parent.uuid}">
-                <img src="${TemplateComponents.getAsset('image', item.type, item.img)}" class="child-icon" alt="${item.name}">
-                <span class="child-label">${item.name}</span>
-                <div class="child-actions">
-                  <button type="button" class="btn-open-sheet" data-uuid="${item.uuid}" title="Open Sheet">
-                    <i class="fas fa-external-link-alt"></i>
-                  </button>
-                  <button type="button" class="btn-focus-item" data-uuid="${item.uuid}" title="Focus in Tab">
-                    <i class="fas fa-search"></i>
-                  </button>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    }
+  //   return html;
+  // }
+
+  // _generateChildrenNodes(children, parent) {
+  //   let html = '';
     
-    return html;
-  }
+  //   // Group children by type
+  //   const childrenByType = children.reduce((acc, child) => {
+  //     if (!acc[child.type]) acc[child.type] = [];
+  //     acc[child.type].push(child);
+  //     return acc;
+  //   }, {});
+    
+  //   // Generate nodes for each type
+  //   for (const [childType, items] of Object.entries(childrenByType)) {
+  //     html += `
+  //       <div class="tree-child-group">
+  //         <div class="tree-child-header">
+  //           <i class="fas fa-${TemplateComponents.getAsset('icon', childType)}"></i>
+  //           <span class="child-type-label">${childType.toUpperCase()}S (${items.length})</span>
+  //         </div>
+  //         <div class="tree-child-items">
+  //           ${items.map(item => `
+  //             <div class="tree-child-item" data-uuid="${item.uuid}" data-parent="${parent.uuid}">
+  //               <img src="${TemplateComponents.getAsset('image', item.type, item.img)}" class="child-icon" alt="${item.name}">
+  //               <span class="child-label">${item.name}</span>
+  //               <div class="child-actions">
+  //                 <button type="button" class="btn-open-sheet" data-uuid="${item.uuid}" title="Open Sheet">
+  //                   <i class="fas fa-external-link-alt"></i>
+  //                 </button>
+  //                 <button type="button" class="btn-focus-item" data-uuid="${item.uuid}" title="Focus in Tab">
+  //                   <i class="fas fa-search"></i>
+  //                 </button>
+  //               </div>
+  //             </div>
+  //           `).join('')}
+  //         </div>
+  //       </div>
+  //     `;
+  //   }
+    
+  //   return html;
+  // }
 
   _getChildrenForMember(member, nestedData) {
     const children = [];
@@ -503,20 +540,99 @@ _onDragOver(event) {
 
 
 
-  async _addMemberToGroup(memberUuid) {
-    await this._saveFormData();
+  // async _addMemberToGroup(memberUuid) {
+  //   await this._saveFormData();
     
-    const groupData = this.document.getFlag("campaign-codex", "data") || {};
-    const members = groupData.members || [];
+  //   const groupData = this.document.getFlag("campaign-codex", "data") || {};
+  //   const members = groupData.members || [];
     
-    if (!members.includes(memberUuid)) {
-      members.push(memberUuid);
-      groupData.members = members;
-      await this.document.setFlag("campaign-codex", "data", groupData);
-      this.render(false);
-      ui.notifications.info("Added member to group");
+  //   if (!members.includes(memberUuid)) {
+  //     members.push(memberUuid);
+  //     groupData.members = members;
+  //     await this.document.setFlag("campaign-codex", "data", groupData);
+  //     this.render(false);
+  //     ui.notifications.info("Added member to group");
+  //   }
+  // }
+
+// async _addMemberToGroup(newMemberUuid) {
+//   const groupData = this.document.getFlag("campaign-codex", "data") || {};
+//   const currentMembers = groupData.members || [];
+  
+//   // 1. Get all entities currently in the group, including all nested children.
+//   const existingMembers = await GroupLinkers.getGroupMembers(currentMembers);
+//   const nestedData = await GroupLinkers.getNestedData(existingMembers);
+  
+//   const allUuids = new Set([
+//     ...nestedData.allGroups.map(i => i.uuid),
+//     ...nestedData.allRegions.map(i => i.uuid),
+//     ...nestedData.allLocations.map(i => i.uuid),
+//     ...nestedData.allShops.map(i => i.uuid),
+//     ...nestedData.allNPCs.map(i => i.uuid),
+//     ...nestedData.allItems.map(i => i.uuid)
+//   ]);
+
+//   // 2. Check if the new member already exists anywhere in the hierarchy.
+//   if (allUuids.has(newMemberUuid)) {
+//     const doc = await fromUuid(newMemberUuid);
+//     ui.notifications.warn(`"${doc.name}" is already included in this group as a child of another member.`);
+//     return;
+//   }
+
+//   // 3. If it's not a duplicate, add it.
+//   currentMembers.push(newMemberUuid);
+//   groupData.members = currentMembers;
+//   await this.document.setFlag("campaign-codex", "data", groupData);
+  
+//   this.render(false);
+//   ui.notifications.info("Added member to group.");
+// }
+// In group-sheet.js
+
+async _addMemberToGroup(newMemberUuid) {
+  // 1. Check for direct self-addition
+  if (newMemberUuid === this.document.uuid) {
+    ui.notifications.warn("A group cannot be added to itself.");
+    return;
+  }
+
+  // 2. Check for indirect/circular dependencies
+  const newMemberDoc = await fromUuid(newMemberUuid);
+  if (newMemberDoc && newMemberDoc.getFlag("campaign-codex", "type") === 'group') {
+    const membersOfNewGroup = await GroupLinkers.getGroupMembers(newMemberDoc.getFlag("campaign-codex", "data")?.members || []);
+    const nestedDataOfNewGroup = await GroupLinkers.getNestedData(membersOfNewGroup);
+    
+    // Check if the current group is already a child of the one being added
+    if (nestedDataOfNewGroup.allGroups.some(g => g.uuid === this.document.uuid)) {
+      ui.notifications.warn(`Cannot add "${newMemberDoc.name}" as it would create a circular dependency.`);
+      return;
     }
   }
+
+  // 3. Check if the member already exists as a child of another member
+  const groupData = this.document.getFlag("campaign-codex", "data") || {};
+  const currentMembers = groupData.members || [];
+  const existingMembers = await GroupLinkers.getGroupMembers(currentMembers);
+  const nestedData = await GroupLinkers.getNestedData(existingMembers);
+  
+  const allUuids = new Set(nestedData.allGroups.map(i => i.uuid).concat(nestedData.allRegions.map(i => i.uuid), nestedData.allLocations.map(i => i.uuid), nestedData.allShops.map(i => i.uuid), nestedData.allNPCs.map(i => i.uuid)));
+
+  if (allUuids.has(newMemberUuid)) {
+    ui.notifications.warn(`"${newMemberDoc.name}" is already included in this group as a child of another member.`);
+    return;
+  }
+
+  // If all checks pass, add the member
+  currentMembers.push(newMemberUuid);
+  groupData.members = currentMembers;
+  await this.document.setFlag("campaign-codex", "data", groupData);
+  
+  this.render(false);
+  ui.notifications.info(`Added "${newMemberDoc.name}" to the group.`);
+}
+
+
+
 
   async _onRemoveMember(event) {
     const memberUuid = event.currentTarget.dataset.uuid;
