@@ -181,8 +181,8 @@ export class CampaignCodexJournalConverter {
         const attrs = actor.system.attributes;
         content += `<p><strong>Race/Class:</strong> ${details?.race || 'Unknown'} ${details?.class || 'Unknown'}</p>\n`;
         if (details?.level) content += `<p><strong>Level:</strong> ${details.level}</p>\n`;
-        if (attrs?.ac?.value) content += `<p><strong>AC:</strong> ${attrs.ac.value}</p>\n`;
-        if (attrs?.hp) content += `<p><strong>HP:</strong> ${attrs.hp.value}/${attrs.hp.max}</p>\n`;
+        // if (attrs?.ac?.value) content += `<p><strong>AC:</strong> ${attrs.ac.value}</p>\n`;
+        // if (attrs?.hp) content += `<p><strong>HP:</strong> ${attrs.hp.value}/${attrs.hp.max}</p>\n`;
         content += `\n`;
       }
     }

@@ -71,6 +71,7 @@
   padding: 24px;
   text-align: center;
   border-bottom: 1px solid var(--cc-border);
+  position:relative;
 }
 
 .campaign-codex .sheet-image {
@@ -540,8 +541,8 @@
 }
 
 .campaign-codex .entity-actions {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto auto;
   gap: 4px;
 }
 
@@ -1032,8 +1033,8 @@
 
 /* Improved Action Button Spacing */
 .campaign-codex .item-actions {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 32px 32px;
   gap: 4px;
   min-width: 40px;
 }
@@ -1057,7 +1058,7 @@
   margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
 }
 
 .campaign-codex .item-weight {
@@ -1334,7 +1335,7 @@
 /* Inventory table responsive grid for loot mode */
 .campaign-codex .inventory-table.loot-mode .table-header,
 .campaign-codex .inventory-table.loot-mode .inventory-item {
-  grid-template-columns: 60px 1fr 120px 100px;
+  grid-template-columns: 60px minmax(100px, 2fr) minmax(80px, 100px) minmax(80px, 100px) minmax(100px, 120px) 68px;
 }
 
 /* Enhanced drop to map button */
@@ -1448,9 +1449,6 @@ GROUP SHEETS
 }
 
 /* Left Panel - Tree View */
-.campaign-codex.group-sheet .group-sidebar .image-change-btn {
-top:44px;
-}
 
 .campaign-codex.group-sheet .save-btn {
 top:44px;
@@ -1470,11 +1468,12 @@ top:44px;
 }
 
 .tree-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--cc-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--cc-border);
+    display: grid;
+    grid-template-columns: 1fr 32px 32px;
+    gap: 4px;
+    align-items: center;
 }
 
 .tree-header h3 {
@@ -1489,21 +1488,6 @@ top:44px;
 
 }
 
-.btn-collapse-all {
-  background: transparent;
-  border: 1px solid var(--cc-accent);
-  color: var(--cc-accent);
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 10px;
-  transition: all 0.2s ease;
-}
-
-.btn-collapse-all:hover {
-  background: var(--cc-accent);
-  color: white;
-}
 
 .tree-content {
   flex: 1;
@@ -1521,21 +1505,38 @@ top:44px;
 }
 
 
+.btn-collapse-all {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 0px solid var(--cc-accent);
+  color: var(--cc-accent);
+  padding: 2px 2px 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.btn-collapse-all:hover {
+  background: var(--cc-accent);
+  color: white;
+}
 
 
 .btn-expand-all {
-  width: 100%;
+  width: 32px;
+  height: 32px;
   background: transparent;
-  border: 1px solid var(--cc-accent);
+  border: 0px solid var(--cc-accent);
   color: var(--cc-accent);
-  padding: 8px;
-  border-radius: 6px;
+  padding: 2px 2px 2px 4px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 10px;
   transition: all 0.2s ease;
+  text-align: center;
 }
 
 .btn-expand-all:hover {
@@ -1777,7 +1778,6 @@ top:44px;
   font-size: 11px;
   font-weight: 600;
   opacity: 0.8;
-  background: rgba(0, 0, 0, 0.1);
   padding: 2px 6px;
   border-radius: 10px;
 }
@@ -1892,7 +1892,7 @@ top:44px;
 }
 
 .group-npc-card {
-  background: white;
+  background: var(--cc-card-bg);
   border-radius: 12px;
   padding: 16px;
   box-shadow: var(--cc-shadow);
@@ -1903,6 +1903,7 @@ top:44px;
   transition: all 0.2s ease;
 }
 
+  
 .group-npc-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
@@ -1941,8 +1942,8 @@ top:44px;
 }
 
 .npc-actions {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto auto;
   gap: 4px;
 }
 
@@ -1957,6 +1958,10 @@ top:44px;
   color: #666;
   transition: all 0.2s ease;
 }
+
+
+
+
 
 .npc-actions button:hover {
   background: var(--cc-accent);
@@ -2053,6 +2058,7 @@ top:44px;
   background: white;
   border-radius: 12px;
   box-shadow: var(--cc-shadow);
+      justify-content: space-around;
 }
 
 .summary-stat {
@@ -2084,9 +2090,10 @@ top:44px;
 }
 
 .shop-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+    display: grid;
+    align-items: center;
+    grid-template-columns: 48px 1fr 36px;
+    gap: 12px;
   padding: 16px;
   background: #f8f9fa;
   border-bottom: 1px solid var(--cc-border-light);
@@ -2124,6 +2131,7 @@ top:44px;
 
 .group-item-card {
   display: flex;
+      flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px;

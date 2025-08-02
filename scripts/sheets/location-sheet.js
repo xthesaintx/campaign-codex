@@ -44,7 +44,7 @@ export class LocationSheet extends CampaignCodexBaseSheet {
     // Sheet configuration
     data.sheetType = "location";
     data.sheetTypeLabel = "Location";
-    data.customImage = this.document.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
+    data.customImage = this.document.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image','location');
     
     // Navigation tabs
     data.tabs = [

@@ -77,16 +77,16 @@ export class NPCSheet extends CampaignCodexBaseSheet {
   // Generate the de-duplicated quick links
   data.quickLinks = CampaignCodexLinkers.createQuickLinks(sources);
 
+          // <div class="stat-row">
+          //   <span class="stat-label">AC </span><span class="stat-value">${data.linkedActor.ac}   </span>
+          //   <span class="stat-label">HP </span><span class="stat-value">${data.linkedActor.hp.value}/${data.linkedActor.hp.max}</span>
+          // </div>
 
     
     // Custom header content (actor stats)
     if (data.linkedActor) {
       data.customHeaderContent = `
         <div class="actor-stats">
-          <div class="stat-row">
-            <span class="stat-label">AC </span><span class="stat-value">${data.linkedActor.ac}   </span>
-            <span class="stat-label">HP </span><span class="stat-value">${data.linkedActor.hp.value}/${data.linkedActor.hp.max}</span>
-          </div>
         </div>
       `;
     }

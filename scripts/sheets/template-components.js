@@ -8,7 +8,7 @@ static getAsset(assetType, entityType, currentImg = null) {
     location: { icon: 'fas fa-map-marker-alt', image: myModulePath+'ui/location.webp' },
     shop:     { icon: 'fas fa-house',          image: myModulePath+'ui/shop.webp' },
     npc:      { icon: 'fas fa-user',           image: myModulePath+'ui/npc.webp' },
-    item:     { icon: 'fas fa-box',            image: myModulePath+'ui/item.webp' },
+    item:     { icon: 'fas fa-tag',            image: myModulePath+'ui/item.webp' },
     group:    { icon: 'fas fa-sitemap',        image: myModulePath+'ui/group.webp' },
     default:  { icon: 'fas fa-question',       image: myModulePath+'ui/default.webp' }
   };
@@ -165,8 +165,8 @@ static getAsset(assetType, entityType, currentImg = null) {
           <button type="button" class="action-btn open-${type}" data-${type}-uuid="${entity.uuid}" title="Open ${type}">
             <i class="fas fa-external-link-alt"></i>
           </button>
-          ${actorButton}
           ${removeButton}
+          ${actorButton}
         </div>
       </div>
     `;
@@ -237,20 +237,11 @@ static getAsset(assetType, entityType, currentImg = null) {
         </div>
         <div class="actor-content">
           <h4 class="actor-name">${actor.name}</h4>
-          <div class="actor-stats-grid">
-            <div class="stat-item">
-              <span class="stat-label">AC</span>
-              <span class="stat-value">${actor.ac}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">HP</span>
-              <span class="stat-value">${actor.hp.value}/${actor.hp.max}</span>
-            </div>
-          </div>
         </div>
         ${actions}
       </div>
     `;
+
   }
 
 
@@ -260,8 +251,8 @@ static inventoryTable(inventory, isLootMode = false) {
   }
 
   const priceColumns = isLootMode ? '' : `
-    <div>Base Price</div>
-    <div>Final Price</div>
+    <div style="text-align:center">Base Price</div>
+    <div style="text-align:center">Final Price</div>
   `;
 
   const tableHeader = `
@@ -269,25 +260,25 @@ static inventoryTable(inventory, isLootMode = false) {
       <div>Image</div>
       <div>Item Name</div>
       ${priceColumns}
-      <div>Quantity</div>
-      <div>Actions</div>
+      <div style="text-align:center">Quantity</div>
+      <div style="text-align:center">Actions</div>
     </div>
   `;
 
   const inventoryRows = inventory.map(item => {
     const priceColumns = isLootMode ? '' : `
-      <div class="item-base-price">
+      <div class="item-base-price" style="text-align:center">
         ${item.basePrice} ${item.currency}
       </div>
-      <div class="item-final-price">
+      <div class="item-final-price" style="text-align:center">
         <input type="number" class="price-input" data-item-uuid="${item.itemUuid}" value="${item.finalPrice}" step="0.01" min="0">
         <span class="price-currency">${item.currency}</span>
       </div>
     `;
 
     const gridColumns = isLootMode ? 
-      'grid-template-columns: 60px 1fr 120px 100px' : 
-      'grid-template-columns: 60px 1fr 100px 120px 120px 100px';
+      'grid-template-columns: 60px minmax(100px, 2fr) minmax(100px, 120px) 68px' : 
+      'grid-template-columns: 60px minmax(100px, 2fr) minmax(80px, 100px) minmax(80px, 100px) minmax(100px, 120px) 68px';
 
     return `
       <div class="inventory-item" draggable="true" data-item-uuid="${item.itemUuid}" data-item-name="${item.name}" style="${gridColumns}">
@@ -298,7 +289,7 @@ static inventoryTable(inventory, isLootMode = false) {
           <div class="item-name">${item.name}</div>
         </div>
         ${priceColumns}
-        <div class="quantity-control">
+        <div class="quantity-control" style="text-align:center">
           <button type="button" class="quantity-btn quantity-decrease" data-item-uuid="${item.itemUuid}">
             <i class="fas fa-minus"></i>
           </button>
@@ -307,7 +298,7 @@ static inventoryTable(inventory, isLootMode = false) {
             <i class="fas fa-plus"></i>
           </button>
         </div>
-        <div class="item-actions">
+        <div class="item-actions" style="text-align:center">
           <button type="button" class="action-btn open-item" data-item-uuid="${item.itemUuid}" title="Open Item Sheet">
             <i class="fas fa-external-link-alt"></i>
           </button>
@@ -323,17 +314,17 @@ static inventoryTable(inventory, isLootMode = false) {
   }).join('');
 
   const headerGridColumns = isLootMode ? 
-    'grid-template-columns: 60px 1fr 120px 100px' : 
-    'grid-template-columns: 60px 1fr 100px 120px 120px 100px';
+      'grid-template-columns: 60px minmax(100px, 2fr) minmax(100px, 120px) 68px' : 
+      'grid-template-columns: 60px minmax(100px, 2fr) minmax(80px, 100px) minmax(80px, 100px) minmax(100px, 120px) 68px';
 
   return `
     <div class="inventory-table">
       <div class="table-header" style="${headerGridColumns}">
         <div>Image</div>
         <div>Item Name</div>
-        ${isLootMode ? '' : '<div>Base Price</div><div>Final Price</div>'}
-        <div>Quantity</div>
-        <div>Actions</div>
+        ${isLootMode ? '' : '<div style="text-align:center">Base Price</div><div style="text-align:center">Final Price</div>'}
+        <div style="text-align:center">Quantity</div>
+        <div style="text-align:center">Actions</div>
       </div>
       ${inventoryRows}
     </div>
@@ -341,63 +332,6 @@ static inventoryTable(inventory, isLootMode = false) {
 }
 
 
-
-  // // Shop inventory table
-  // static inventoryTable(inventory) {
-  //   if (!inventory || inventory.length === 0) {
-  //     return this.emptyState('item');
-  //   }
-
-  //   return `
-  //     <div class="inventory-table">
-  //       <div class="table-header">
-  //         <div>Image</div>
-  //         <div>Item Name</div>
-  //         <div>Base Price</div>
-  //         <div>Quantity</div>
-  //         <div>Final Price</div>
-  //         <div>Actions</div>
-  //       </div>
-  //       ${inventory.map(item => `
-  //         <div class="inventory-item" draggable="true" data-item-uuid="${item.itemUuid}" data-item-name="${item.name}">
-  //           <div class="item-image">
-  //             <img src="${item.img}" alt="${item.name}">
-  //           </div>
-  //           <div class="item-details">
-  //             <div class="item-name">${item.name}</div>
-  //           </div>
-  //           <div class="item-base-price">
-  //             ${item.basePrice} ${item.currency}
-  //           </div>
-  //           <div class="quantity-control">
-  //             <button type="button" class="quantity-btn quantity-decrease" data-item-uuid="${item.itemUuid}">
-  //               <i class="fas fa-minus"></i>
-  //             </button>
-  //             <input type="number" class="quantity-input" data-item-uuid="${item.itemUuid}" value="${item.quantity}" min="0">
-  //             <button type="button" class="quantity-btn quantity-increase" data-item-uuid="${item.itemUuid}">
-  //               <i class="fas fa-plus"></i>
-  //             </button>
-  //           </div>
-  //           <div class="item-final-price">
-  //             <input type="number" class="price-input" data-item-uuid="${item.itemUuid}" value="${item.finalPrice}" step="0.01" min="0">
-  //             <span class="price-currency">${item.currency}</span>
-  //           </div>
-  //           <div class="item-actions">
-  //             <button type="button" class="action-btn open-item" data-item-uuid="${item.itemUuid}" title="Open Item Sheet">
-  //               <i class="fas fa-external-link-alt"></i>
-  //             </button>
-  //             <button type="button" class="action-btn send-to-player" data-item-uuid="${item.itemUuid}" title="Send to Player">
-  //               <i class="fas fa-paper-plane"></i>
-  //             </button>
-  //             <button type="button" class="action-btn remove-item" data-item-uuid="${item.itemUuid}" title="Remove Item">
-  //               <i class="fas fa-trash"></i>
-  //             </button>
-  //           </div>
-  //         </div>
-  //       `).join('')}
-  //     </div>
-  //   `;
-  // }
 
   static async createPlayerSelectionDialog(itemName, onPlayerSelected) {
     // Get all actors that are player characters (type "character")

@@ -49,7 +49,7 @@ export class ShopSheet extends CampaignCodexBaseSheet {
     // Sheet configuration
     data.sheetType = "shop";
     data.sheetTypeLabel = "Entry";
-    data.customImage = this.document.getFlag("campaign-codex", "image") || "icons/svg/house.svg";
+    data.customImage = this.document.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image','shop');
     data.markup = shopData.markup || 1.0;
     
     // Navigation tabs
@@ -75,13 +75,6 @@ export class ShopSheet extends CampaignCodexBaseSheet {
       { icon: 'fas fa-percentage', value: `${data.markup}x`, label: 'MARKUP', color: '#d4af37' }
     ];
     
-    // // Quick links
-    // data.quickLinks = [
-    //   ...(data.linkedLocation ? [{ ...data.linkedLocation, type: 'location' }] : []),
-    //   ...data.linkedNPCs.map(npc => ({ ...npc, type: 'npc' }))
-    // ];
-
-
       const sources = [
     { data: data.linkedLocation, type: 'location' },
     { data: data.linkedNPCs, type: 'npc' }
@@ -280,9 +273,11 @@ _generateNPCsTab(data) {
 
     // Item dragging
     html.find('.inventory-item').on('dragstart', this._onItemDragStart.bind(this));
-    // Add these methods to the sheet classes
+    html.find('.inventory-item').on('dragend', this._onItemDragEnd.bind(this));
+
+    // Scenes
     html.find('.open-scene').click(this._onOpenScene.bind(this));
-html.find('.remove-scene').click(this._onRemoveScene.bind(this));
+    html.find('.remove-scene').click(this._onRemoveScene.bind(this));
 
   }
 async _onOpenScene(event) {
@@ -467,20 +462,55 @@ currentData.inventory = (currentData.inventory || []).filter(i => i.itemUuid !==
     this.render(false);
   }
 
-  async _onRemoveLocation(event) {
-      await this._saveFormData();
+async _onRemoveLocation(event) {
+  // 1. Get the current shop and its linked location's UUID
+  const shopDoc = this.document;
+  const shopData = shopDoc.getFlag("campaign-codex", "data") || {};
+  const locationUuid = shopData.linkedLocation;
 
-    const currentData = this.document.getFlag("campaign-codex", "data") || {};
-    currentData.linkedLocation = null;
-    await this.document.setFlag("campaign-codex", "data", currentData);
+  if (!locationUuid) return; // Nothing to do if no location is linked
+
+  try {
+    // 2. Find the Location document
+    const locationDoc = await fromUuid(locationUuid);
+    if (locationDoc) {
+      // 3. Remove this shop's UUID from the Location's flags
+      const locationData = locationDoc.getFlag("campaign-codex", "data") || {};
+      if (locationData.linkedShops) {
+        locationData.linkedShops = locationData.linkedShops.filter(uuid => uuid !== shopDoc.uuid);
+        
+        // Update the location document and tell it to skip the faulty hook
+        locationDoc._skipRelationshipUpdates = true;
+        await locationDoc.setFlag("campaign-codex", "data", locationData);
+        delete locationDoc._skipRelationshipUpdates;
+
+        // Manually refresh the Location sheet if it's open
+        for (const app of Object.values(ui.windows)) {
+          if (app.document?.uuid === locationDoc.uuid) {
+            app.render(false);
+          }
+        }
+      }
+    }
+
+    // 4. Now, remove the location link from this shop itself
+    shopDoc._skipRelationshipUpdates = true;
+    await shopDoc.update({ "flags.campaign-codex.data.linkedLocation": null });
+    delete shopDoc._skipRelationshipUpdates;
+
+  } catch (error) {
+    console.error("Campaign Codex | Error removing location link:", error);
+    ui.notifications.error("Failed to remove location link.");
+  } finally {
+    // 5. Refresh the current (Shop) sheet to show the change
     this.render(false);
   }
+}
+
 
   getSheetType() {
     return "shop";
   }
-
-
 
 
 // New method to handle opening item sheets
@@ -557,29 +587,25 @@ await this._onRemoveItem({ currentTarget: { dataset: { itemUuid: item.uuid } } }
   }
 }
 
-// New method to handle item dragging
 _onItemDragStart(event) {
   const itemUuid = event.currentTarget.dataset.itemUuid;
-  const itemName = event.currentTarget.dataset.itemName;
   
   const dragData = {
     type: "Item",
     uuid: itemUuid,
     source: "shop",
-    shopId: this.document.id,
-    shopName: this.document.name
+    shopId: this.document.id
   };
-    event.originalEvent.dataTransfer.setData("text/plain", JSON.stringify(dragData));
-
-  // event.dataTransfer.setData("text/plain", JSON.stringify(dragData));
   
-  // Visual feedback
+  event.originalEvent.dataTransfer.setData("text/plain", JSON.stringify(dragData));
+  
+  // Set visual feedback
   event.currentTarget.style.opacity = "0.5";
-  setTimeout(() => {
-    if (event.currentTarget) {
-      event.currentTarget.style.opacity = "1";
-    }
-  }, 100);
+}
+
+_onItemDragEnd(event) {
+  // Reset the visual feedback
+  event.currentTarget.style.opacity = "1";
 }
 
 // ADD this method to handle the drop to map button click:

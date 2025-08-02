@@ -45,7 +45,7 @@ export class RegionSheet extends CampaignCodexBaseSheet {
     // Sheet configuration
     data.sheetType = "region";
     data.sheetTypeLabel = "Region";
-    data.customImage = this.document.getFlag("campaign-codex", "image") || "icons/svg/direction.svg";
+    data.customImage = this.document.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image','region');
     
     // Navigation tabs
     data.tabs = [

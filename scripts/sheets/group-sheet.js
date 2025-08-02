@@ -57,7 +57,7 @@ export class GroupSheet extends CampaignCodexBaseSheet {
       {
         key: 'npcs',
         active: this._currentTab === 'npcs',
-        content: this._generateNPCsTab(data)
+        content: await this._generateNPCsTab(data)
       },
       {
         key: 'inventory',
@@ -83,10 +83,6 @@ activateListeners(html) {
   // Call the parent class to inherit its listeners
   super.activateListeners(html);
 
-  // Explicitly set up drop and dragover listeners for this sheet
-  // html[0].addEventListener('drop', this._onDrop.bind(this));
-  // html[0].addEventListener('dragover', this._onDragOver.bind(this));
-
   // Group-specific setup
   this._setupGroupTabs(html);
 
@@ -98,6 +94,8 @@ activateListeners(html) {
   // Sheet opening
   html.find('.btn-open-sheet').click(this._onOpenSheet.bind(this));
   html.find('.btn-open-actor').click(this._onOpenActor.bind(this));
+  html.find('.group-location-card').click(this._onOpenSheet.bind(this)); // <<< ADD THIS LINE
+
 
   // Group management
   html.find('.btn-remove-member').click(this._onRemoveMember.bind(this));
@@ -108,6 +106,15 @@ activateListeners(html) {
 
   // Group tabs
   html.find('.group-tab').click(this._onTabChange.bind(this));
+  html.find('.card-image-clickable').click(event => {
+    // Stop the event to prevent the Foundry pop-out
+    event.stopPropagation();
+    
+    // Manually call the function to open the sheet
+    this._onOpenSheet(event);
+  });
+
+
 }
 
 async _handleDrop(data, event) {
@@ -176,8 +183,11 @@ _onDragOver(event) {
       <div class="group-tree">
         <div class="tree-header">
           <h3><i class="fas fa-sitemap"></i> Group Structure</h3>
-          <button type="button" class="btn-collapse-all" title="Collapse All">
-            <i class="fas fa-arrow-right-to-bracket"></i>
+          <button type="button" class="btn-expand-all" title="Expand All" style="width:32px">
+            <i class="fas fa-expand-arrows-alt"></i>
+          </button>
+          <button type="button" class="btn-collapse-all" title="Collapse All" style="width:32px">
+            <i class="fas fa-compress-arrows-alt"></i>
           </button>
         </div>
         
@@ -185,15 +195,10 @@ _onDragOver(event) {
           ${this._generateTreeNodes(groupMembers, nestedData)}
         </div>
         
-        <div class="tree-actions">
-          <button type="button" class="btn-expand-all" title="Expand All">
-            <i class="fas fa-expand-arrows-alt"></i> Expand All
-          </button>
-        </div>
+
       </div>
     `;
   }
-
 
   _generateTreeNodes(nodes, nestedData) {
     let html = '';
@@ -231,84 +236,6 @@ _onDragOver(event) {
     return html;
   }
 
-  // _generateTreeNodes(groupMembers, nestedData) {
-  //   let html = '';
-    
-  //   for (const member of groupMembers) {
-  //     const type = member.type;
-  //     const children = this._getChildrenForMember(member, nestedData);
-  //     const hasChildren = children.length > 0;
-
-
-  //     html += `
-  //       <div class="tree-node" data-type="${type}" data-uuid="${member.uuid}">
-  //         <div class="tree-node-header ${hasChildren ? 'expandable' : ''}" data-uuid="${member.uuid}">
-  //           ${hasChildren ? '<i class="fas fa-chevron-right expand-icon"></i>' : '<i class="tree-spacer"></i>'}
-  //           <img src="${TemplateComponents.getAsset('image',member.type,member.img )}" class="tree-icon" alt="${member.name}">
-  //           <span class="tree-label">${member.name}</span>
-  //           <span class="tree-type">${type}</span>
-  //           <div class="tree-actions">
-  //             <button type="button" class="btn-open-sheet" data-uuid="${member.uuid}" title="Open Sheet">
-  //               <i class="fas fa-external-link-alt"></i>
-  //             </button>
-  //             <button type="button" class="btn-remove-member" data-uuid="${member.uuid}" title="Remove from Group">
-  //               <i class="fas fa-times"></i>
-  //             </button>
-  //           </div>
-  //         </div>
-          
-  //         ${hasChildren ? `
-  //           <div class="tree-children" style="display: none;">
-  //             ${this._generateChildrenNodes(children, member)}
-  //           </div>
-  //         ` : ''}
-  //       </div>
-  //     `;
-  //   }
-    
-  //   return html;
-  // }
-
-  // _generateChildrenNodes(children, parent) {
-  //   let html = '';
-    
-  //   // Group children by type
-  //   const childrenByType = children.reduce((acc, child) => {
-  //     if (!acc[child.type]) acc[child.type] = [];
-  //     acc[child.type].push(child);
-  //     return acc;
-  //   }, {});
-    
-  //   // Generate nodes for each type
-  //   for (const [childType, items] of Object.entries(childrenByType)) {
-  //     html += `
-  //       <div class="tree-child-group">
-  //         <div class="tree-child-header">
-  //           <i class="fas fa-${TemplateComponents.getAsset('icon', childType)}"></i>
-  //           <span class="child-type-label">${childType.toUpperCase()}S (${items.length})</span>
-  //         </div>
-  //         <div class="tree-child-items">
-  //           ${items.map(item => `
-  //             <div class="tree-child-item" data-uuid="${item.uuid}" data-parent="${parent.uuid}">
-  //               <img src="${TemplateComponents.getAsset('image', item.type, item.img)}" class="child-icon" alt="${item.name}">
-  //               <span class="child-label">${item.name}</span>
-  //               <div class="child-actions">
-  //                 <button type="button" class="btn-open-sheet" data-uuid="${item.uuid}" title="Open Sheet">
-  //                   <i class="fas fa-external-link-alt"></i>
-  //                 </button>
-  //                 <button type="button" class="btn-focus-item" data-uuid="${item.uuid}" title="Focus in Tab">
-  //                   <i class="fas fa-search"></i>
-  //                 </button>
-  //               </div>
-  //             </div>
-  //           `).join('')}
-  //         </div>
-  //       </div>
-  //     `;
-  //   }
-    
-  //   return html;
-  // }
 
   _getChildrenForMember(member, nestedData) {
     const children = [];
@@ -382,17 +309,17 @@ _onDragOver(event) {
           </div>
         </div>
       </div>
-      
-      ${TemplateComponents.richTextSection('Description', 'fas fa-align-left', data.sheetData.enrichedDescription, 'description')}
-       <div class="form-section">
+             <div class="form-section">
              <h3><i class="fas fa-link"></i> Add Members</h3>
 
-        ${TemplateComponents.dropZone('member', 'fas fa-plus-circle', 'Add Members', 'Drag regions, locations, entries, or NPCs here to add them to this group')}
+    ${TemplateComponents.dropZone('member', 'fas fa-plus-circle', 'Add Members', 'Drag regions, locations, entries, or NPCs here to add them to this group')}
       </div>
+
+      ${TemplateComponents.richTextSection('Description', 'fas fa-align-left', data.sheetData.enrichedDescription, 'description')}
     `;
   }
 
-  _generateNPCsTab(data) {
+  async _generateNPCsTab(data) {
     return `
       ${TemplateComponents.contentHeader('fas fa-users', 'All NPCs in Group')}
       
@@ -400,11 +327,11 @@ _onDragOver(event) {
         <button type="button" class="filter-btn active" data-filter="all">All NPCs</button>
         <button type="button" class="filter-btn" data-filter="location">Location NPCs</button>
         <button type="button" class="filter-btn" data-filter="shop">Entry NPCs</button>
-        <button type="button" class="filter-btn" data-filter="player">Player Characters</button>
+        <button type="button" class="filter-btn" data-filter="character">Player Characters</button>
       </div>
       
       <div class="npc-grid-container">
-        ${this._generateNPCCards(data.nestedData.allNPCs)}
+        ${await this._generateNPCCards(data.nestedData.allNPCs)}
       </div>
     `;
   }
@@ -414,6 +341,10 @@ _onDragOver(event) {
       ${TemplateComponents.contentHeader('fas fa-boxes', 'All Inventory in Group')}
       
       <div class="inventory-summary">
+        <div class="summary-stat">
+          <span class="stat-value">${data.nestedData.allShops.length}</span>
+          <span class="stat-label">Total Entries</span>
+        </div>
         <div class="summary-stat">
           <span class="stat-value">${data.nestedData.allItems.length}</span>
           <span class="stat-label">Total Items</span>
@@ -440,16 +371,19 @@ _onDragOver(event) {
     `;
   }
 
-  _generateNPCCards(npcs) {
-    return npcs.map(npc => `
-      <div class="group-npc-card" data-filter="${npc.source}" data-uuid="${npc.uuid}">
+  async _generateNPCCards(npcs) {
+  const cardPromises = npcs.map(async npc => {
+    const actor = await fromUuid(npc.actor?.uuid);
+    const actorType = actor ? actor.type : '';
+
+    return `
+      <div class="group-npc-card" data-filter="${npc.source} ${actorType}" data-uuid="${npc.uuid}">
         <div class="npc-avatar">
           <img src="${TemplateComponents.getAsset('image', 'npc', npc.img)}" alt="${npc.name}">
         </div>
         <div class="npc-info">
           <h4 class="npc-name">${npc.name}</h4>
           <div class="npc-source">${npc.sourceLocation || npc.sourceShop || 'Direct'}</div>
-          ${npc.actor ? `<div class="npc-stats">AC ${npc.actor.ac} | HP ${npc.actor.hp.value}/${npc.actor.hp.max}</div>` : ''}
         </div>
         <div class="npc-actions">
           <button type="button" class="btn-open-sheet" data-uuid="${npc.uuid}">
@@ -462,14 +396,20 @@ _onDragOver(event) {
           ` : ''}
         </div>
       </div>
-    `).join('');
-  }
+    `;
+  });
 
+  const htmlCards = await Promise.all(cardPromises);
+
+  return htmlCards.join('');
+}
+
+ 
   _generateLocationCards(locations) {
     return locations.map(location => `
       <div class="group-location-card" data-uuid="${location.uuid}">
         <div class="location-image">
-          <img src="${TemplateComponents.getAsset('image', location.type, location.img)}" alt="${location.name}">
+          <img class="card-image-clickable" data-uuid="${location.uuid}" src="${TemplateComponents.getAsset('image', location.type, location.img)}" alt="${location.name}">
         </div>
         <div class="location-info">
           <h4 class="location-name">${location.name}</h4>
@@ -477,11 +417,6 @@ _onDragOver(event) {
             ${location.npcCount} NPCs | ${location.shopCount} Shops
           </div>
           ${location.region ? `<div class="location-region">Region: ${location.region}</div>` : ''}
-        </div>
-        <div class="location-actions">
-          <button type="button" class="btn-open-sheet" data-uuid="${location.uuid}">
-            <i class="fas fa-external-link-alt"></i>
-          </button>
         </div>
       </div>
     `).join('');
@@ -526,8 +461,6 @@ _onDragOver(event) {
     return html;
   }
 
-
-
   _calculateGroupStats(nestedData) {
     return {
       regions: nestedData.allRegions.length,
@@ -539,64 +472,14 @@ _onDragOver(event) {
   }
 
 
-
-  // async _addMemberToGroup(memberUuid) {
-  //   await this._saveFormData();
-    
-  //   const groupData = this.document.getFlag("campaign-codex", "data") || {};
-  //   const members = groupData.members || [];
-    
-  //   if (!members.includes(memberUuid)) {
-  //     members.push(memberUuid);
-  //     groupData.members = members;
-  //     await this.document.setFlag("campaign-codex", "data", groupData);
-  //     this.render(false);
-  //     ui.notifications.info("Added member to group");
-  //   }
-  // }
-
-// async _addMemberToGroup(newMemberUuid) {
-//   const groupData = this.document.getFlag("campaign-codex", "data") || {};
-//   const currentMembers = groupData.members || [];
-  
-//   // 1. Get all entities currently in the group, including all nested children.
-//   const existingMembers = await GroupLinkers.getGroupMembers(currentMembers);
-//   const nestedData = await GroupLinkers.getNestedData(existingMembers);
-  
-//   const allUuids = new Set([
-//     ...nestedData.allGroups.map(i => i.uuid),
-//     ...nestedData.allRegions.map(i => i.uuid),
-//     ...nestedData.allLocations.map(i => i.uuid),
-//     ...nestedData.allShops.map(i => i.uuid),
-//     ...nestedData.allNPCs.map(i => i.uuid),
-//     ...nestedData.allItems.map(i => i.uuid)
-//   ]);
-
-//   // 2. Check if the new member already exists anywhere in the hierarchy.
-//   if (allUuids.has(newMemberUuid)) {
-//     const doc = await fromUuid(newMemberUuid);
-//     ui.notifications.warn(`"${doc.name}" is already included in this group as a child of another member.`);
-//     return;
-//   }
-
-//   // 3. If it's not a duplicate, add it.
-//   currentMembers.push(newMemberUuid);
-//   groupData.members = currentMembers;
-//   await this.document.setFlag("campaign-codex", "data", groupData);
-  
-//   this.render(false);
-//   ui.notifications.info("Added member to group.");
-// }
-// In group-sheet.js
-
 async _addMemberToGroup(newMemberUuid) {
-  // 1. Check for direct self-addition
+  // Check for direct self-addition
   if (newMemberUuid === this.document.uuid) {
     ui.notifications.warn("A group cannot be added to itself.");
     return;
   }
 
-  // 2. Check for indirect/circular dependencies
+  // Check for indirect/circular dependencies
   const newMemberDoc = await fromUuid(newMemberUuid);
   if (newMemberDoc && newMemberDoc.getFlag("campaign-codex", "type") === 'group') {
     const membersOfNewGroup = await GroupLinkers.getGroupMembers(newMemberDoc.getFlag("campaign-codex", "data")?.members || []);
@@ -609,7 +492,7 @@ async _addMemberToGroup(newMemberUuid) {
     }
   }
 
-  // 3. Check if the member already exists as a child of another member
+  // Check if the member already exists as a child of another member
   const groupData = this.document.getFlag("campaign-codex", "data") || {};
   const currentMembers = groupData.members || [];
   const existingMembers = await GroupLinkers.getGroupMembers(currentMembers);
@@ -630,9 +513,6 @@ async _addMemberToGroup(newMemberUuid) {
   this.render(false);
   ui.notifications.info(`Added "${newMemberDoc.name}" to the group.`);
 }
-
-
-
 
   async _onRemoveMember(event) {
     const memberUuid = event.currentTarget.dataset.uuid;
@@ -705,8 +585,8 @@ async _addMemberToGroup(newMemberUuid) {
     // Show/hide cards based on filter
     cards.each(function() {
       const cardFilter = this.dataset.filter;
-      if (filter === 'all' || cardFilter === filter) {
-        this.style.display = 'block';
+      if (filter === 'all' || cardFilter.includes(filter)) {
+        this.style.display = 'flex';
       } else {
         this.style.display = 'none';
       }

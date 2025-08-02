@@ -639,7 +639,7 @@ export class CampaignCodexLinkers {
         
         const shopData = journal.getFlag("campaign-codex", "data") || {};
         const linkedLocationUuid = shopData.linkedLocation;
-        const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/house.svg";
+        const imageData = journal.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image','shop');
         let locationName = 'Unknown';
         
         if (linkedLocationUuid) {
@@ -691,7 +691,7 @@ export class CampaignCodexLinkers {
         
         const shopData = journal.getFlag("campaign-codex", "data") || {};
         const npcCount = (shopData.linkedNPCs || []).length;
-        const imageData = journal.getFlag("campaign-codex", "image") || "icons/svg/house.svg";
+        const imageData = journal.getFlag("campaign-codex", "image") || TemplateComponents.getAsset('image','shop');
 
         shops.push({
           id: journal.id,
@@ -785,21 +785,23 @@ export class CampaignCodexLinkers {
         }
         
                 // Try common paths for price
-        const basePrice = this.getValue(item, 'system.price.value') || 
+        const rawPrice = this.getValue(item, 'system.price.value') || 
                          this.getValue(item, 'system.price') || 
                          this.getValue(item, 'system.cost') || 0;
+       const basePrice = parseFloat(String(rawPrice).replace(/[^\d.]/g, '')) || 0;
+                  
 
         // Try common paths for currency
         const currency = this.getValue(item, 'system.price.denomination') || 
                         this.getValue(item, 'system.currency') || "gp";
 
         // Try common paths for weight/bulk
-        const weight = this.getValue(item, 'system.weight') || 
+        const rawWeight = this.getValue(item, 'system.weight') || 
                       this.getValue(item, 'system.bulk.value') || 
                       this.getValue(item, 'system.bulk') || 0;
+        const weight = parseFloat(String(rawWeight).replace(/[^\d.]/g, '')) || 0;
 
-        // const basePrice = item.system.price?.value || 0;
-        // const currency = item.system.price?.denomination || "gp";
+
         const markup = document.getFlag("campaign-codex", "data.markup") || 1.0;
         const finalPrice = itemData.customPrice ?? Math.round(basePrice * markup);
 

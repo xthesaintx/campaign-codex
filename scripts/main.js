@@ -10,6 +10,7 @@ import { NPCDropper } from './npc-dropper.js';
 import { CampaignCodexTokenPlacement } from './token-placement.js';
 import { GroupSheet } from './sheets/group-sheet.js';
 import { TemplateComponents } from './sheets/template-components.js'; // Make sure this is imported
+import { GroupLinkers } from './sheets/group-linkers.js';
 
 
 Hooks.once('init', async function() {
@@ -386,19 +387,11 @@ Hooks.on('renderJournalDirectory', (app, html, data) => {
 
 });
 
-
-
-// Force correct sheet to open immediately upon creation
 Hooks.on('createJournalEntry', async (document, options, userId) => {
-  if (game.user.id !== userId) return;
+  if (game.user.id !== userId || document.pack) return;
   
   const journalType = document.getFlag("campaign-codex", "type");
   if (!journalType) return;
-
-  if (document.pack) {
-    console.log("Campaign Codex | Skipping auto-open for compendium document");
-    return;
-  }
 
   // Move to appropriate folder
   const folder = getCampaignCodexFolder(journalType);
@@ -406,69 +399,144 @@ Hooks.on('createJournalEntry', async (document, options, userId) => {
     await document.update({ folder: folder.id });
   }
 
-  // Set the correct sheet type immediately
+  // Determine the correct sheet class string
   let sheetClass = null;
   switch (journalType) {
-    case "location":
-      sheetClass = "campaign-codex.LocationSheet";
-      break;
-    case "shop":
-      sheetClass = "campaign-codex.ShopSheet";
-      break;
-    case "npc":
-      sheetClass = "campaign-codex.NPCSheet";
-      break;
-    case "region":
-      sheetClass = "campaign-codex.RegionSheet";
-      break;
-    case "group":
-      sheetClass = "campaign-codex.GroupSheet";
-      break;  
+    case "location": sheetClass = "campaign-codex.LocationSheet"; break;
+    case "shop":     sheetClass = "campaign-codex.ShopSheet";     break;
+    case "npc":      sheetClass = "campaign-codex.NPCSheet";      break;
+    case "region":   sheetClass = "campaign-codex.RegionSheet";   break;
+    case "group":    sheetClass = "campaign-codex.GroupSheet";    break;  
   }
   
-
-  
   if (sheetClass) {
+    // 1. Update the document to set its default sheet.
     await document.update({
       "flags.core.sheetClass": sheetClass
     });
+
+    // 2. Now just render the sheet. Foundry will use the class we just set.
+    document.sheet.render(true);
   }
-
-  // Open the correct sheet
-  setTimeout(() => {
-    let targetSheet = null;
-
-    switch (journalType) {
-      case "location":
-        targetSheet = LocationSheet;
-        break;
-      case "shop":
-        targetSheet = ShopSheet;
-        break;
-      case "npc":
-        targetSheet = NPCSheet;
-        break;
-      case "region":
-        targetSheet = RegionSheet;
-        break;
-      case "group":
-        targetSheet = GroupSheet;
-        break;
-    }
-
-    if (targetSheet) {
-      if (document.sheet.rendered) {
-        document.sheet.close();
-      }
-      const sheet = new targetSheet(document);
-      sheet.render(true);
-      document._campaignCodexSheet = sheet;
-    }
-  }, 100);
 });
 
-// Auto-select appropriate sheet based on flags for existing documents
-Hooks.on('renderJournalEntry', (journal, html, data) => {
+// // Force correct sheet to open immediately upon creation
+// Hooks.on('createJournalEntry', async (document, options, userId) => {
+//   if (game.user.id !== userId) return;
+  
+//   const journalType = document.getFlag("campaign-codex", "type");
+//   if (!journalType) return;
+
+//   if (document.pack) {
+//     console.log("Campaign Codex | Skipping auto-open for compendium document");
+//     return;
+//   }
+
+//   // Move to appropriate folder
+//   const folder = getCampaignCodexFolder(journalType);
+//   if (folder) {
+//     await document.update({ folder: folder.id });
+//   }
+
+//   // Set the correct sheet type immediately
+//   let sheetClass = null;
+//   switch (journalType) {
+//     case "location":
+//       sheetClass = "campaign-codex.LocationSheet";
+//       break;
+//     case "shop":
+//       sheetClass = "campaign-codex.ShopSheet";
+//       break;
+//     case "npc":
+//       sheetClass = "campaign-codex.NPCSheet";
+//       break;
+//     case "region":
+//       sheetClass = "campaign-codex.RegionSheet";
+//       break;
+//     case "group":
+//       sheetClass = "campaign-codex.GroupSheet";
+//       break;  
+//   }
+  
+
+  
+//   if (sheetClass) {
+//     await document.update({
+//       "flags.core.sheetClass": sheetClass
+//     });
+//   }
+
+//   // Open the correct sheet
+//   setTimeout(() => {
+//     let targetSheet = null;
+
+//     switch (journalType) {
+//       case "location":
+//         targetSheet = LocationSheet;
+//         break;
+//       case "shop":
+//         targetSheet = ShopSheet;
+//         break;
+//       case "npc":
+//         targetSheet = NPCSheet;
+//         break;
+//       case "region":
+//         targetSheet = RegionSheet;
+//         break;
+//       case "group":
+//         targetSheet = GroupSheet;
+//         break;
+//     }
+
+//     if (targetSheet) {
+//       if (document.sheet.rendered) {
+//         document.sheet.close();
+//       }
+//       const sheet = new targetSheet(document);
+//       sheet.render(true);
+//       document._campaignCodexSheet = sheet;
+//     }
+//   }, 100);
+// });
+
+// // Auto-select appropriate sheet based on flags for existing documents
+// Hooks.on('renderJournalEntry', (journal, html, data) => {
+//   const journalType = journal.getFlag("campaign-codex", "type");
+//   if (!journalType) return;
+
+//   const currentSheetName = journal.sheet.constructor.name;
+//   let targetSheet = null;
+
+//   switch (journalType) {
+//     case "location":
+//       if (currentSheetName !== "LocationSheet") targetSheet = LocationSheet;
+//       break;
+//     case "shop":
+//       if (currentSheetName !== "ShopSheet") targetSheet = ShopSheet;
+//       break;
+//     case "npc":
+//       if (currentSheetName !== "NPCSheet") targetSheet = NPCSheet;
+//       break;
+//     case "region":
+//       if (currentSheetName !== "RegionSheet") targetSheet = RegionSheet;
+//       break;
+//     case "group":
+//       if (currentSheetName !== "GroupSheet") targetSheet = GroupSheet;
+//       break;
+
+//   }
+
+//   if (targetSheet) {
+//     setTimeout(() => {
+//       journal.sheet.close();
+//       const sheet = new targetSheet(journal);
+//       sheet.render(true);
+//       journal._campaignCodexSheet = sheet;
+//     }, 100);
+//   }
+// });
+
+Hooks.on('renderJournalEntry', async (journal, html, data) => {
   const journalType = journal.getFlag("campaign-codex", "type");
   if (!journalType) return;
 
@@ -491,16 +559,16 @@ Hooks.on('renderJournalEntry', (journal, html, data) => {
     case "group":
       if (currentSheetName !== "GroupSheet") targetSheet = GroupSheet;
       break;
-
   }
 
   if (targetSheet) {
-    setTimeout(() => {
-      journal.sheet.close();
-      const sheet = new targetSheet(journal);
-      sheet.render(true);
-      journal._campaignCodexSheet = sheet;
-    }, 100);
+    // This waits for the current render to finish before proceeding.
+    await Promise.resolve(); 
+    
+    journal.sheet.close();
+    const sheet = new targetSheet(journal);
+    sheet.render(true);
+    journal._campaignCodexSheet = sheet;
   }
 });
 
@@ -545,87 +613,206 @@ async function promptForName(type) {
 }
 
 
-// Handle bidirectional relationship updates and sheet refreshing
 Hooks.on('updateJournalEntry', async (document, changes, options, userId) => {
-  if (document._skipRelationshipUpdates) return;
-  if (game.user.id !== userId) return;
-  
+  if (document._skipRelationshipUpdates || game.user.id !== userId) return;
+
   const type = document.getFlag("campaign-codex", "type");
   if (!type) return;
 
   try {
-    // Handle relationship updates first
     await game.campaignCodex.handleRelationshipUpdates(document, changes, type);
-    
-    // Then refresh all related open sheets
-    setTimeout(async () => {
-      const documentId = document.id;
-      
-      // Get all open applications
-      for (const app of Object.values(ui.windows)) {
-        if (!app.document || !app.document.getFlag) continue;
-        
-        const appDocumentId = app.document.id;
-        const appType = app.document.getFlag("campaign-codex", "type");
-        
-        // Check if this is a Campaign Codex sheet that needs refreshing
-        if (appType && (appDocumentId === documentId || app._isRelatedDocument?.(document.uuid))) {
-          // console.log(`Campaign Codex | Refreshing ${appType} sheet: ${app.document.name}`);
-          app.render(false);
-        }
-      }
-    }, 150); // Slightly longer delay to ensure relationship updates complete
-    
   } catch (error) {
     console.error('Campaign Codex | Error in updateJournalEntry hook:', error);
   }
 });
 
+// // Handle bidirectional relationship updates and sheet refreshing
+// Hooks.on('updateJournalEntry', async (document, changes, options, userId) => {
+//   if (document._skipRelationshipUpdates || game.user.id !== userId) return;
+
+//   const type = document.getFlag("campaign-codex", "type");
+//   if (!type) return;
+
+//   try {
+//     await game.campaignCodex.handleRelationshipUpdates(document, changes, type);
+//     const sheetsToRefresh = new Set();
+//     const documentUuid = document.uuid;
+//     for (const app of Object.values(ui.windows)) {
+//       if (!app.document?.getFlag) continue;
+//       const appType = app.document.getFlag("campaign-codex", "type");
+//       if (!appType) continue;
+//       if (app.document.uuid === documentUuid || (app._isRelatedDocument && await app._isRelatedDocument(documentUuid))) {
+//         sheetsToRefresh.add(app);
+//       }
+//     }
+//     for (const app of Object.values(ui.windows)) {
+//       if (app.document?.getFlag?.("campaign-codex", "type") === 'group' && app.constructor.name === 'GroupSheet') {
+//          const groupData = app.document.getFlag("campaign-codex", "data") || {};
+//          const groupMembers = await GroupLinkers.getGroupMembers(groupData.members || []);
+//          const nestedData = await GroupLinkers.getNestedData(groupMembers);
+         
+//          const allUuids = new Set([
+//            ...nestedData.allGroups.map(i => i.uuid),
+//            ...nestedData.allRegions.map(i => i.uuid),
+//            ...nestedData.allLocations.map(i => i.uuid),
+//            ...nestedData.allShops.map(i => i.uuid),
+//            ...nestedData.allNPCs.map(i => i.uuid)
+//          ]);
+
+//          if (allUuids.has(documentUuid)) {
+//            sheetsToRefresh.add(app);
+//          }
+//       }
+//     }
+
+//     for (const app of sheetsToRefresh) {
+//       app.render(false);
+//     }
+    
+//   } catch (error) {
+//     console.error('Campaign Codex | Error in updateJournalEntry hook:', error);
+//   }
+// });
+
+// // Handle bidirectional relationship updates and sheet refreshing
+// Hooks.on('updateJournalEntry', async (document, changes, options, userId) => {
+//   if (document._skipRelationshipUpdates) return;
+//   if (game.user.id !== userId) return;
+  
+//   const type = document.getFlag("campaign-codex", "type");
+//   if (!type) return;
+
+//   try {
+//     // Handle relationship updates first
+//     await game.campaignCodex.handleRelationshipUpdates(document, changes, type);
+    
+//     // Then refresh all related open sheets
+//     setTimeout(async () => {
+//       const documentId = document.id;
+      
+//       // Get all open applications
+//       for (const app of Object.values(ui.windows)) {
+//         if (!app.document || !app.document.getFlag) continue;
+        
+//         const appDocumentId = app.document.id;
+//         const appType = app.document.getFlag("campaign-codex", "type");
+        
+//         // Check if this is a Campaign Codex sheet that needs refreshing
+//         if (appType && (appDocumentId === documentId || app._isRelatedDocument?.(document.uuid))) {
+//           // console.log(`Campaign Codex | Refreshing ${appType} sheet: ${app.document.name}`);
+//           app.render(false);
+//         }
+//       }
+//     }, 150); // Slightly longer delay to ensure relationship updates complete
+    
+//   } catch (error) {
+//     console.error('Campaign Codex | Error in updateJournalEntry hook:', error);
+//   }
+// });
+
+// Hooks.on('updateActor', async (actor, changes, options, userId) => {
+//   if (game.user.id !== userId) return;
+  
+//   // Only care about image changes
+//   if (!changes.img) return;
+  
+//   console.log(`Campaign Codex | Actor image updated: ${actor.name}`);
+  
+//   // Find all NPC journals that link to this actor
+//   const linkedNPCs = game.journal.filter(j => {
+//     const npcData = j.getFlag("campaign-codex", "data");
+//     return npcData && npcData.linkedActor === actor.uuid;
+//   });
+  
+//   if (linkedNPCs.length === 0) return;
+  
+//   console.log(`Campaign Codex | Found ${linkedNPCs.length} NPC journals linked to actor ${actor.name}`);
+  
+//   // Refresh any open NPC sheets for this actor
+//   setTimeout(async () => {
+//     for (const npcJournal of linkedNPCs) {
+//       // Find and refresh the NPC sheet if it's open
+//       for (const app of Object.values(ui.windows)) {
+//         if (app.document && app.document.uuid === npcJournal.uuid) {
+//           console.log(`Campaign Codex | Refreshing NPC sheet: ${npcJournal.name}`);
+//           app.render(false);
+//           break;
+//         }
+//       }
+      
+//       // Also refresh any related sheets that might show this NPC
+//       setTimeout(async () => {
+//         for (const app of Object.values(ui.windows)) {
+//           if (!app.document || !app.document.getFlag || app.document.uuid === npcJournal.uuid) continue;
+          
+//           const appType = app.document.getFlag("campaign-codex", "type");
+//           if (appType && app._isRelatedDocument && await app._isRelatedDocument(npcJournal.uuid)) {
+//             console.log(`Campaign Codex | Refreshing related sheet showing NPC: ${app.document.name}`);
+//             app.render(false);
+//           }
+//         }
+//       }, 100);
+//     }
+//   }, 150);
+// });
+
 Hooks.on('updateActor', async (actor, changes, options, userId) => {
-  if (game.user.id !== userId) return;
-  
-  // Only care about image changes
-  if (!changes.img) return;
-  
-  console.log(`Campaign Codex | Actor image updated: ${actor.name}`);
-  
+  if (game.user.id !== userId || !changes.img) return;
+
   // Find all NPC journals that link to this actor
-  const linkedNPCs = game.journal.filter(j => {
-    const npcData = j.getFlag("campaign-codex", "data");
-    return npcData && npcData.linkedActor === actor.uuid;
-  });
-  
+  const linkedNPCs = game.journal.filter(j => j.getFlag("campaign-codex", "data")?.linkedActor === actor.uuid);
   if (linkedNPCs.length === 0) return;
-  
-  console.log(`Campaign Codex | Found ${linkedNPCs.length} NPC journals linked to actor ${actor.name}`);
-  
-  // Refresh any open NPC sheets for this actor
-  setTimeout(async () => {
-    for (const npcJournal of linkedNPCs) {
-      // Find and refresh the NPC sheet if it's open
-      for (const app of Object.values(ui.windows)) {
-        if (app.document && app.document.uuid === npcJournal.uuid) {
-          console.log(`Campaign Codex | Refreshing NPC sheet: ${npcJournal.name}`);
-          app.render(false);
-          break;
+
+  const linkedNpcUuids = new Set(linkedNPCs.map(j => j.uuid));
+  console.log(`Campaign Codex | Actor image updated for ${actor.name}. Found ${linkedNPCs.length} linked NPC journals.`);
+
+  const sheetsToRefresh = new Set();
+
+  // Iterate through all open application windows to find sheets that need refreshing
+  for (const app of Object.values(ui.windows)) {
+    if (!app.document?.getFlag) continue;
+    const docType = app.document.getFlag("campaign-codex", "type");
+    if (!docType) continue;
+
+    // Case 1: The NPC's own sheet is open
+    if (docType === 'npc' && linkedNpcUuids.has(app.document.uuid)) {
+      sheetsToRefresh.add(app);
+      continue;
+    }
+
+    // Case 2: A GroupSheet is open, check if it contains the NPC
+    if (docType === 'group' && app.constructor.name === 'GroupSheet') {
+      const groupData = app.document.getFlag("campaign-codex", "data") || {};
+      const groupMembers = await GroupLinkers.getGroupMembers(groupData.members || []);
+      const nestedData = await GroupLinkers.getNestedData(groupMembers);
+      
+      const containsNpc = nestedData.allNPCs.some(npc => linkedNpcUuids.has(npc.uuid));
+      if (containsNpc) {
+        sheetsToRefresh.add(app);
+      }
+      continue;
+    }
+
+    // Case 3: Any other related sheet (Location, Shop, etc.)
+    if (app._isRelatedDocument) {
+      for (const npcUuid of linkedNpcUuids) {
+        if (await app._isRelatedDocument(npcUuid)) {
+          sheetsToRefresh.add(app);
+          break; // This app is related, no need to check other NPCs
         }
       }
-      
-      // Also refresh any related sheets that might show this NPC
-      setTimeout(async () => {
-        for (const app of Object.values(ui.windows)) {
-          if (!app.document || !app.document.getFlag || app.document.uuid === npcJournal.uuid) continue;
-          
-          const appType = app.document.getFlag("campaign-codex", "type");
-          if (appType && app._isRelatedDocument && await app._isRelatedDocument(npcJournal.uuid)) {
-            console.log(`Campaign Codex | Refreshing related sheet showing NPC: ${app.document.name}`);
-            app.render(false);
-          }
-        }
-      }, 100);
     }
-  }, 150);
+  }
+
+  // Now, render all unique sheets that were found
+  if (sheetsToRefresh.size > 0) {
+    console.log(`Campaign Codex | Refreshing ${sheetsToRefresh.size} sheets.`);
+    for (const app of sheetsToRefresh) {
+      app.render(false);
+    }
+  }
 });
+
 
 // Export folder management functions for use in campaign manager
 window.getCampaignCodexFolder = getCampaignCodexFolder;

@@ -29,7 +29,6 @@ async getData() {
     notes: sheetData.notes || ""
   };
   
-  // This logic is now handled here for all sheets
   data.sheetData.enrichedDescription = await TextEditor.enrichHTML(data.sheetData.description, { async: true, secrets: this.document.isOwner }); //
   data.sheetData.enrichedNotes = await TextEditor.enrichHTML(data.sheetData.notes, { async: true, secrets: this.document.isOwner }); //
 
@@ -130,7 +129,45 @@ async getData() {
     }
   }
   
-async _onImageClick(event) {
+// async _onImageClick(event) {
+//   event.preventDefault();
+//   event.stopPropagation();
+  
+//   const current = this.document.getFlag("campaign-codex", "image") || this.document.img;
+//   const fp = new FilePicker({
+//     type: "image",
+//     current: current,
+//     callback: async (path) => {
+//       try {
+//         console.log("Updating image to:", path);
+//         await this.document.setFlag("campaign-codex", "image", path);
+        
+//         // Force immediate visual update
+//         const imgElement = this.element.find('.sheet-image img');
+//         if (imgElement.length) {
+//           imgElement.attr('src', path);
+//         }
+        
+//         // Re-render the entire sheet to ensure all image references update
+//         setTimeout(() => {
+//           this.render(false);
+//         }, 100);
+        
+//         ui.notifications.info("Image updated successfully!");
+//       } catch (error) {
+//         console.error("Failed to update image:", error);
+//         ui.notifications.error("Failed to update image");
+//       }
+//     },
+//     top: this.position.top + 40,
+//     left: this.position.left + 10
+//   });
+  
+//   return fp.browse();
+// }
+
+
+  async _onImageClick(event) {
   event.preventDefault();
   event.stopPropagation();
   
@@ -140,19 +177,11 @@ async _onImageClick(event) {
     current: current,
     callback: async (path) => {
       try {
-        console.log("Updating image to:", path);
+        // 1. Wait for the data to be saved to the document
         await this.document.setFlag("campaign-codex", "image", path);
         
-        // Force immediate visual update
-        const imgElement = this.element.find('.sheet-image img');
-        if (imgElement.length) {
-          imgElement.attr('src', path);
-        }
-        
-        // Re-render the entire sheet to ensure all image references update
-        setTimeout(() => {
-          this.render(false);
-        }, 100);
+        // 2. Re-render the sheet to reflect the change. No timeout needed.
+        this.render(false);
         
         ui.notifications.info("Image updated successfully!");
       } catch (error) {
@@ -172,6 +201,48 @@ async _onImageClick(event) {
     event.dataTransfer.dropEffect = "link";
   }
 
+// async _onDrop(event) {
+//   event.preventDefault();
+//   if (this._dropping) return;
+//   this._dropping = true;
+  
+//   let data;
+//   try {
+//     data = JSON.parse(event.dataTransfer.getData('text/plain'));
+//   } catch (err) {
+//     this._dropping = false;
+//     return;
+//   }
+
+//   try {
+//     await this._saveFormData();
+//     await this._handleDrop(data, event);
+    
+//     // Force immediate refresh after successful drop
+//     setTimeout(() => {
+//       console.log(`Campaign Codex | Refreshing sheet after drop: ${this.document.name}`);
+//       this.render(false);
+      
+//       // Also refresh any other related sheets
+//       const myDocUuid = this.document.uuid;
+//       for (const app of Object.values(ui.windows)) {
+//         if (!app.document || !app.document.getFlag || app === this) continue;
+        
+//         const appType = app.document.getFlag("campaign-codex", "type");
+//         if (appType && app._isRelatedDocument && app._isRelatedDocument(myDocUuid)) {
+//           console.log(`Campaign Codex | Refreshing related sheet: ${app.document.name}`);
+//           app.render(false);
+//         }
+//       }
+//     }, 200); // Longer delay to ensure all relationship updates complete
+    
+//   } catch (error) {
+//     console.error('Campaign Codex | Error handling drop:', error);
+//   } finally {
+//     this._dropping = false;
+//   }
+// }
+
 async _onDrop(event) {
   event.preventDefault();
   if (this._dropping) return;
@@ -186,26 +257,33 @@ async _onDrop(event) {
   }
 
   try {
+    // 1. Wait for form data to save and the drop to be handled.
     await this._saveFormData();
     await this._handleDrop(data, event);
     
-    // Force immediate refresh after successful drop
-    setTimeout(() => {
-      console.log(`Campaign Codex | Refreshing sheet after drop: ${this.document.name}`);
-      this.render(false);
+    // 2. Refresh this sheet and any other related sheets immediately.
+    const sheetsToRefresh = new Set();
+    const myDocUuid = this.document.uuid;
+
+    // Add the current sheet to be refreshed.
+    sheetsToRefresh.add(this);
+    
+    // Find all other open sheets that are related to the document that was just dropped on.
+    for (const app of Object.values(ui.windows)) {
+      if (!app.document?.getFlag || app === this) continue;
       
-      // Also refresh any other related sheets
-      const myDocUuid = this.document.uuid;
-      for (const app of Object.values(ui.windows)) {
-        if (!app.document || !app.document.getFlag || app === this) continue;
-        
-        const appType = app.document.getFlag("campaign-codex", "type");
-        if (appType && app._isRelatedDocument && app._isRelatedDocument(myDocUuid)) {
-          console.log(`Campaign Codex | Refreshing related sheet: ${app.document.name}`);
-          app.render(false);
-        }
+      const appType = app.document.getFlag("campaign-codex", "type");
+      // Add 'await' to the _isRelatedDocument call, as it is an async function.
+      if (appType && app._isRelatedDocument && await app._isRelatedDocument(myDocUuid)) {
+        sheetsToRefresh.add(app);
       }
-    }, 200); // Longer delay to ensure all relationship updates complete
+    }
+
+    // Now render all unique sheets that need it.
+    for (const app of sheetsToRefresh) {
+      console.log(`Campaign Codex | Refreshing sheet: ${app.document.name}`);
+      app.render(false);
+    }
     
   } catch (error) {
     console.error('Campaign Codex | Error handling drop:', error);
@@ -213,6 +291,7 @@ async _onDrop(event) {
     this._dropping = false;
   }
 }
+  
 
 async _onSaveData(event) {
   event.preventDefault();
